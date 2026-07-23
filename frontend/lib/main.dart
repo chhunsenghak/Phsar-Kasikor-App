@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'models/app_state.dart';
 import 'screens/splash_screen.dart';
+import 'services/config_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ConfigService.initialize();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(
     ChangeNotifierProvider(
       create: (context) => AppState(),
@@ -25,7 +33,7 @@ class MyApp extends StatelessWidget {
           seedColor: const Color(0xFF0F5238),
           primary: const Color(0xFF0F5238),
           secondary: const Color(0xFF2B694D),
-          background: const Color(0xFFF8F9FA),
+          surface: const Color(0xFFF8F9FA),
         ),
         useMaterial3: true,
       ),

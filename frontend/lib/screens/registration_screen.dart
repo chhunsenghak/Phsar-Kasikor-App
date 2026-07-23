@@ -7,6 +7,7 @@ import '../widgets/custom_button.dart';
 import '../widgets/custom_card.dart';
 import '../widgets/custom_input.dart';
 import 'app_shell.dart';
+import '../services/auth_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -35,26 +36,54 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     super.dispose();
   }
 
-  void _handleRegister() {
+  void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      // Simulate API call
-      Future.delayed(const Duration(milliseconds: 1200), () {
+      try {
+        final int roleId = _selectedRole == 'farmer' ? 3 : 6;
+
+        await AuthService.register(
+          name: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          password: _passwordController.text,
+          roleId: roleId,
+          email: _emailController.text.trim(),
+        );
+
+        final loginResponse = await AuthService.login(
+          _phoneController.text.trim(),
+          _passwordController.text,
+        );
+
+        final String token = loginResponse['access_token'];
+        final userProfile = await AuthService.fetchUserProfile(token);
+
         if (mounted) {
           final state = Provider.of<AppState>(context, listen: false);
-          state.login(_emailController.text.isNotEmpty ? _emailController.text : _nameController.text, _selectedRole);
-          
-          // Clear routes and jump to app shell
+          state.loginWithProfile(token, userProfile);
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const AppShell()),
             (route) => false,
           );
         }
-      });
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
     }
   }
 

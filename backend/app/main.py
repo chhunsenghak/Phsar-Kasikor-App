@@ -13,6 +13,10 @@ from app.core.config import settings
 from app.core.database import engine
 from app.models.base import Base
 
+from app.models.user import User
+from app.models.role import Role
+from app.models.user_role import UserRole
+
 class ColoredFormatter(logging.Formatter):
     """
     Custom logging formatter that adds ANSI escape sequences to colorize

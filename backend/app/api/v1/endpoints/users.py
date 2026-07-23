@@ -21,11 +21,20 @@ def register_user(
     """
     Register a new user. Checks if user with email already exists.
     """
-    user = user_service.get_user_by_email(db, email=user_in.email)
-    if user:
+    if user_in.email:
+        user = user_service.get_user_by_email(db, email=user_in.email)
+        if user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=errors.EMAIL_ALREADY_EXISTS,
+            )
+    
+    # Enforce phone number uniqueness
+    user_by_phone = user_service.get_user_by_phone(db, phone=user_in.phoneNumber)
+    if user_by_phone:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=errors.EMAIL_ALREADY_EXISTS,
+            detail=errors.PHONE_NUMBER_ALREADY_EXISTS,
         )
     return user_service.create_user(db, user_in=user_in)
 

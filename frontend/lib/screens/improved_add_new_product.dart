@@ -96,203 +96,165 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Photo Uploader Mock Box
-              Text(
-                'Product Photo',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Mock Image Picker triggered.')),
-                  );
-                },
-                child: CustomCard(
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  backgroundColor: AppColors.surfaceContainerLow,
-                  borderSide: const BorderSide(color: AppColors.outlineVariant, style: BorderStyle.solid),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.add_photo_alternate_outlined,
-                          size: 48,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Upload Crop Photo',
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Supports JPEG, PNG up to 5MB',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppColors.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              _buildPhotoUploader(),
               const SizedBox(height: 20),
+              _buildNameInput(),
+              const SizedBox(height: 16),
+              _buildCategoryChips(categories),
+              const SizedBox(height: 16),
+              _buildPricingRow(units),
+              const SizedBox(height: 16),
+              _buildStockAndLocationRow(),
+              const SizedBox(height: 16),
+              _buildDescriptionField(),
+              const SizedBox(height: 32),
+              _buildSubmitButton(),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-              // Inputs Group
-              CustomInput(
-                label: 'Crop/Product Name',
-                hintText: 'e.g. Organic Brown Rice',
-                controller: _nameController,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter crop name';
+  Widget _buildPhotoUploader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Product Photo',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Mock Image Picker triggered.')),
+            );
+          },
+          child: CustomCard(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            backgroundColor: AppColors.surfaceContainerLow,
+            borderSide: const BorderSide(color: AppColors.outlineVariant, style: BorderStyle.solid),
+            child: Center(
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.add_photo_alternate_outlined,
+                    size: 48,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Upload Crop Photo',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Supports JPEG, PNG up to 5MB',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNameInput() {
+    return CustomInput(
+      label: 'Crop/Product Name',
+      hintText: 'e.g. Organic Brown Rice',
+      controller: _nameController,
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please enter crop name';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildCategoryChips(List<String> categories) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Category',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: categories.map((cat) {
+            final isSelected = _selectedCategory == cat;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ChoiceChip(
+                label: Text(
+                  cat,
+                  style: GoogleFonts.inter(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected ? AppColors.onSecondaryContainer : AppColors.onSurfaceVariant,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: AppColors.secondaryContainer,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _selectedCategory = cat;
+                    });
                   }
-                  return null;
                 },
               ),
-              const SizedBox(height: 16),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
-              // Category Choice Tab
+  Widget _buildPricingRow(List<String> units) {
+    return Row(
+      children: [
+        Expanded(
+          child: CustomInput(
+            label: 'Price per Unit (\$)',
+            hintText: 'e.g. 1.25',
+            controller: _priceController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            validator: (value) {
+              if (value == null || double.tryParse(value) == null) {
+                return 'Enter valid price';
+              }
+              return null;
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'Category',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: categories.map((cat) {
-                  final isSelected = _selectedCategory == cat;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ChoiceChip(
-                      label: Text(
-                        cat,
-                        style: GoogleFonts.inter(
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? AppColors.onSecondaryContainer : AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                      selected: isSelected,
-                      selectedColor: AppColors.secondaryContainer,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _selectedCategory = cat;
-                          });
-                        }
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-
-              // Pricing Row
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomInput(
-                      label: 'Price per Unit (\$)',
-                      hintText: 'e.g. 1.25',
-                      controller: _priceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: (value) {
-                        if (value == null || double.tryParse(value) == null) {
-                          return 'Enter valid price';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Dropdown unit selector
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Unit Type',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-                            border: Border.all(color: AppColors.outlineVariant),
-                          ),
-                          child: DropdownButton<String>(
-                            value: _selectedUnit,
-                            isExpanded: true,
-                            underline: const SizedBox(),
-                            items: units.map((u) {
-                              return DropdownMenuItem(value: u, child: Text('per $u'));
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _selectedUnit = val;
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomInput(
-                      label: 'Stock Quantity',
-                      hintText: 'e.g. 500',
-                      controller: _qtyController,
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || double.tryParse(value) == null) {
-                          return 'Enter valid stock';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: CustomInput(
-                      label: 'Origin Location',
-                      hintText: 'e.g. Battambang',
-                      controller: _locationController,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Description
-              Text(
-                'Crop Details & Cultivation Description',
+                'Unit Type',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -300,32 +262,100 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
                 ),
               ),
               const SizedBox(height: 6),
-              TextField(
-                controller: _descController,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'Detail farming methods, certificates, fertilizers used, grain quality...',
-                  filled: true,
-                  fillColor: AppColors.surfaceContainerLow,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-                    borderSide: const BorderSide(color: AppColors.outlineVariant),
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+                  border: Border.all(color: AppColors.outlineVariant),
+                ),
+                child: DropdownButton<String>(
+                  value: _selectedUnit,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  items: units.map((u) {
+                    return DropdownMenuItem(value: u, child: Text('per $u'));
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedUnit = val;
+                      });
+                    }
+                  },
                 ),
               ),
-              const SizedBox(height: 32),
-
-              // Submit Button
-              CustomButton(
-                text: 'Publish Crop Listing',
-                icon: Icons.cloud_upload_outlined,
-                onPressed: _handleSubmit,
-              ),
-              const SizedBox(height: 40),
             ],
           ),
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildStockAndLocationRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: CustomInput(
+            label: 'Stock Quantity',
+            hintText: 'e.g. 500',
+            controller: _qtyController,
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || double.tryParse(value) == null) {
+                return 'Enter valid stock';
+              }
+              return null;
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: CustomInput(
+            label: 'Origin Location',
+            hintText: 'e.g. Battambang',
+            controller: _locationController,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDescriptionField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Crop Details & Cultivation Description',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _descController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: 'Detail farming methods, certificates, fertilizers used, grain quality...',
+            filled: true,
+            fillColor: AppColors.surfaceContainerLow,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+              borderSide: const BorderSide(color: AppColors.outlineVariant),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return CustomButton(
+      text: 'Publish Crop Listing',
+      icon: Icons.cloud_upload_outlined,
+      onPressed: _handleSubmit,
     );
   }
 }

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "14770164771",
+    "project_id": "phsarkasikorapp",
+    "storage_bucket": "phsarkasikorapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:14770164771:android:18c7250675b707af9a8d96",
+        "android_client_info": {
+          "package_name": "phsarkasikor.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "14770164771-p36ipted4l6e253bp33fio5qa9de5rb0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAb8AamlVaW80hJCkb3FffWY8XDOV3vLP0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "14770164771-p36ipted4l6e253bp33fio5qa9de5rb0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

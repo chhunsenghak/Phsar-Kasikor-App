@@ -77,263 +77,293 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Target Product Summary Card
-            CustomCard(
-              padding: const EdgeInsets.all(16),
-              elevated: false,
-              backgroundColor: AppColors.surfaceContainerLow,
-              child: Row(
-                children: [
-                  const Icon(Icons.shopping_bag_outlined, color: AppColors.primary, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        Text(
-                          'Market Price: \$${product.price.toStringAsFixed(2)}/${product.unit}',
-                          style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  )
-                ],
-              ),
-            ),
+            _buildProductSummary(product),
             const SizedBox(height: 20),
 
             // Negotiation Timeline / Messages
-            Text(
-              'Negotiation History',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 180,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-                border: Border.all(color: AppColors.outlineVariant, width: 0.5),
-              ),
-              child: activeBid.status == 'none'
-                  ? Center(
-                      child: Text(
-                        'No offers placed yet. Fill fields below to start.',
-                        style: GoogleFonts.inter(color: AppColors.outline, fontSize: 13),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: activeBid.chatMessages.length,
-                      itemBuilder: (context, idx) {
-                        final msg = activeBid.chatMessages[idx];
-                        final isFarmer = msg.startsWith('Farmer:');
-                        final isSystem = msg.startsWith('System:');
-
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Align(
-                            alignment: isSystem
-                                ? Alignment.center
-                                : (isFarmer ? Alignment.centerLeft : Alignment.centerRight),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSystem
-                                    ? Colors.grey[200]
-                                    : (isFarmer ? AppColors.surfaceContainerLow : AppColors.secondaryContainer),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                msg,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: isSystem ? FontWeight.w500 : FontWeight.bold,
-                                  color: isSystem
-                                      ? AppColors.onSurfaceVariant
-                                      : (isFarmer ? AppColors.onSurface : AppColors.onSecondaryContainer),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
+            _buildNegotiationHistory(activeBid),
             const SizedBox(height: 20),
 
             // Bid Inputs Card
-            Text(
-              'Your Offer details',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 8),
-            CustomCard(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _priceController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(
-                            labelText: 'Offered Price (\$)',
-                            labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                            suffixText: '/${product.unit}',
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextField(
-                          controller: _qtyController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'Quantity',
-                            labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                            suffixText: product.unit,
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Bid Status
-                  if (activeBid.status != 'none') ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Status:',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _getStatusBg(activeBid.status),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            activeBid.status.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              color: _getStatusText(activeBid.status),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Action Button
-                  CustomButton(
-                    text: activeBid.status == 'none' ? 'Submit Offer' : 'Update Bid Offer',
-                    icon: Icons.send_rounded,
-                    onPressed: () {
-                      final price = double.tryParse(_priceController.text) ?? product.price;
-                      final qty = double.tryParse(_qtyController.text) ?? 50.0;
-                      state.placeBid(product, price, qty);
-                    },
-                  ),
-                ],
-              ),
-            ),
+            _buildOfferDetails(state, product, activeBid),
             const SizedBox(height: 24),
 
             // Prototype Simulation Box (Helper tool for reviewers)
             if (activeBid.status == 'pending') ...[
-              CustomCard(
-                backgroundColor: AppColors.secondaryContainer.withValues(alpha: 0.3),
-                borderSide: const BorderSide(color: AppColors.primary, width: 1),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PROTOTYPE INTERACTIVE SIMULATOR',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.onSecondaryContainer,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Simulate the farmer\'s response to your bid. Choose an action:',
-                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                            onPressed: () {
-                              state.acceptBid(activeBid.id);
-                            },
-                            child: const Text('Accept Bid', style: TextStyle(color: Colors.white)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.tertiary),
-                            onPressed: () {
-                              final counterPrice = activeBid.offeredPrice * 1.05; // 5% bump
-                              state.counterOffer(activeBid.id, counterPrice);
-                              _priceController.text = counterPrice.toStringAsFixed(2);
-                            },
-                            child: const Text('Counter Offer', style: TextStyle(color: Colors.white)),
-                          ),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-              ),
+              _buildSimulator(state, activeBid),
             ],
 
             if (activeBid.status == 'accepted') ...[
-              CustomButton(
-                text: 'Proceed to Checkout',
-                icon: Icons.shopping_cart_checkout_rounded,
-                backgroundColor: AppColors.primary,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => KHQRCheckoutScreen(
-                        productName: product.name,
-                        unit: product.unit,
-                        price: activeBid.offeredPrice,
-                        quantity: activeBid.quantity,
-                      ),
-                    ),
-                  );
-                },
-              ),
+              _buildCheckoutButton(context, product, activeBid),
             ]
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProductSummary(MarketProduct product) {
+    return CustomCard(
+      padding: const EdgeInsets.all(16),
+      elevated: false,
+      backgroundColor: AppColors.surfaceContainerLow,
+      child: Row(
+        children: [
+          const Icon(Icons.shopping_bag_outlined, color: AppColors.primary, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.name,
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  'Market Price: \$${product.price.toStringAsFixed(2)}/${product.unit}',
+                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNegotiationHistory(BidOffer activeBid) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Negotiation History',
+          style: GoogleFonts.inter(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 180,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+            border: Border.all(color: AppColors.outlineVariant, width: 0.5),
+          ),
+          child: activeBid.status == 'none'
+              ? Center(
+                  child: Text(
+                    'No offers placed yet. Fill fields below to start.',
+                    style: GoogleFonts.inter(color: AppColors.outline, fontSize: 13),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: activeBid.chatMessages.length,
+                  itemBuilder: (context, idx) {
+                    final msg = activeBid.chatMessages[idx];
+                    final isFarmer = msg.startsWith('Farmer:');
+                    final isSystem = msg.startsWith('System:');
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Align(
+                        alignment: isSystem
+                            ? Alignment.center
+                            : (isFarmer ? Alignment.centerLeft : Alignment.centerRight),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSystem
+                                ? Colors.grey[200]
+                                : (isFarmer ? AppColors.surfaceContainerLow : AppColors.secondaryContainer),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            msg,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: isSystem ? FontWeight.w500 : FontWeight.bold,
+                              color: isSystem
+                                  ? AppColors.onSurfaceVariant
+                                  : (isFarmer ? AppColors.onSurface : AppColors.onSecondaryContainer),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOfferDetails(AppState state, MarketProduct product, BidOffer activeBid) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Your Offer details',
+          style: GoogleFonts.inter(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        CustomCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _priceController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Offered Price (\$)',
+                        labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                        suffixText: '/${product.unit}',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: _qtyController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Quantity',
+                        labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                        suffixText: product.unit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Bid Status
+              if (activeBid.status != 'none') ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Status:',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getStatusBg(activeBid.status),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        activeBid.status.toUpperCase(),
+                        style: GoogleFonts.inter(
+                          color: _getStatusText(activeBid.status),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // Action Button
+              CustomButton(
+                text: activeBid.status == 'none' ? 'Submit Offer' : 'Update Bid Offer',
+                icon: Icons.send_rounded,
+                onPressed: () {
+                  final price = double.tryParse(_priceController.text) ?? product.price;
+                  final qty = double.tryParse(_qtyController.text) ?? 50.0;
+                  state.placeBid(product, price, qty);
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimulator(AppState state, BidOffer activeBid) {
+    return CustomCard(
+      backgroundColor: AppColors.secondaryContainer.withValues(alpha: 0.3),
+      borderSide: const BorderSide(color: AppColors.primary, width: 1),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PROTOTYPE INTERACTIVE SIMULATOR',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.onSecondaryContainer,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Simulate the farmer\'s response to your bid. Choose an action:',
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  onPressed: () {
+                    state.acceptBid(activeBid.id);
+                  },
+                  child: const Text('Accept Bid', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.tertiary),
+                  onPressed: () {
+                    final counterPrice = activeBid.offeredPrice * 1.05; // 5% bump
+                    state.counterOffer(activeBid.id, counterPrice);
+                    _priceController.text = counterPrice.toStringAsFixed(2);
+                  },
+                  child: const Text('Counter Offer', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCheckoutButton(BuildContext context, MarketProduct product, BidOffer activeBid) {
+    return CustomButton(
+      text: 'Proceed to Checkout',
+      icon: Icons.shopping_cart_checkout_rounded,
+      backgroundColor: AppColors.primary,
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => KHQRCheckoutScreen(
+              productName: product.name,
+              unit: product.unit,
+              price: activeBid.offeredPrice,
+              quantity: activeBid.quantity,
+            ),
+          ),
+        );
+      },
     );
   }
 

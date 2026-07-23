@@ -115,6 +115,12 @@ class AppState extends ChangeNotifier {
   String _userName = 'Guest User';
   String get userName => _userName;
 
+  String? _token;
+  String? get token => _token;
+
+  Map<String, dynamic>? _userProfile;
+  Map<String, dynamic>? get userProfile => _userProfile;
+
   void setRole(String role) {
     _currentRole = role;
     if (role == 'farmer') {
@@ -133,10 +139,37 @@ class AppState extends ChangeNotifier {
     addNotification('Welcome back, $_userName!', 'You are logged in under the $role dashboard.');
   }
 
+  void loginWithProfile(String token, Map<String, dynamic> profile) {
+    _token = token;
+    _userProfile = profile;
+    _isLoggedIn = true;
+
+    // Resolve role based on role_id
+    final int roleId = profile['role_id'] ?? 6;
+    String roleStr = 'buyer';
+    if (roleId == 1) {
+      roleStr = 'admin';
+    } else if (roleId == 3) {
+      roleStr = 'farmer';
+    } else if (roleId == 5) {
+      roleStr = 'technician';
+    } else if (roleId == 2) {
+      roleStr = 'association';
+    }
+
+    _currentRole = roleStr;
+    _userName = profile['username'] ?? profile['email'] ?? 'User';
+
+    addNotification('Welcome back, $_userName!', 'You are logged in under the $_currentRole dashboard.');
+    notifyListeners();
+  }
+
   void logout() {
     _isLoggedIn = false;
     _currentRole = 'buyer';
     _userName = 'Guest User';
+    _token = null;
+    _userProfile = null;
     notifyListeners();
   }
 

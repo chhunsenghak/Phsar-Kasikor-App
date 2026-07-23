@@ -11,8 +11,12 @@ class UserBase(BaseModel):
     email: Optional[str] = Field(None, description="The user's email address")
     username: Optional[str] = Field(None, min_length=3, max_length=50, description="The user's username")
     phoneNumber: str = Field(..., description="The user's unique phone number")
-    role: UserRole = Field(UserRole.BUYER, description="The user's role (e.g. FARMER, BUYER, MERCHANT, ADMIN)")
-    address: str = Field(..., description="The user's physical address")
+    role_id: int = Field(..., description="The integer ID of the user's role (e.g. 1, 2, 3...)")
+    province: Optional[str] = Field(None, description="The province/city name (optional)")
+    district: Optional[str] = Field(None, description="The district/khan name (optional)")
+    commune: Optional[str] = Field(None, description="The commune/sangkat name (optional)")
+    village: Optional[str] = Field(None, description="The village name (optional)")
+    street_address: Optional[str] = Field(None, description="The street address/house number (optional)")
 
     @field_validator("email")
     @classmethod
@@ -42,8 +46,12 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     phoneNumber: Optional[str] = None
-    role: Optional[UserRole] = None
-    address: Optional[str] = None
+    role_id: Optional[int] = None
+    province: Optional[str] = None
+    district: Optional[str] = None
+    commune: Optional[str] = None
+    village: Optional[str] = None
+    street_address: Optional[str] = None
 
     @field_validator("password")
     @classmethod
