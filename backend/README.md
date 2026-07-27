@@ -114,6 +114,68 @@ The application will run at:
 
 ---
 
+## 🗄️ Database Migrations with Alembic
+
+We use **Alembic** to manage database schema updates programmatically without losing existing data.
+
+### Option A: Running inside Docker (Recommended)
+Since the database runs inside Docker, running migration tasks inside the container ensures hostnames and networks resolve correctly:
+
+1. **Autogenerate a new migration script** (run this after modifying any model inside `app/models/`):
+   ```bash
+   docker compose exec backend alembic revision --autogenerate -m "description of changes"
+   ```
+2. **Apply migrations to the database**:
+   ```bash
+   docker compose exec backend alembic upgrade head
+   ```
+3. **View current database schema version**:
+   ```bash
+   docker compose exec backend alembic current
+   ```
+
+### Option B: Running Locally (Non-Docker)
+If you are running the backend natively outside Docker, run the commands directly in your activated virtual environment:
+
+1. **Autogenerate migration**:
+   ```bash
+   alembic revision --autogenerate -m "description of changes"
+   ```
+2. **Apply migration**:
+   ```bash
+   alembic upgrade head
+   ```
+
+---
+
+## 🛠️ Code Compilation & Syntax Verification
+
+Although Python is interpreted and Uvicorn hot-reloads automatically, you can manually compile files to verify syntax and catch compile errors early:
+
+### Compile a single file
+Verify syntax for a specific file:
+* **Inside Docker:**
+  ```bash
+  docker compose exec backend python -m py_compile app/api/v1/endpoints/users.py
+  ```
+* **Locally (Active Venv):**
+  ```bash
+  python -m py_compile app/api/v1/endpoints/users.py
+  ```
+
+### Compile the entire project
+Check for compilation errors across all modules:
+* **Inside Docker:**
+  ```bash
+  docker compose exec backend python -m compileall .
+  ```
+* **Locally (Active Venv):**
+  ```bash
+  python -m compileall .
+  ```
+
+---
+
 ## 🔑 Key API Endpoints
 
 | Method | Endpoint | Description | Auth Required |

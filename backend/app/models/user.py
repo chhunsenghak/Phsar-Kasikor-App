@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Numeric
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -26,6 +26,13 @@ class User(Base):
     commune = Column(String, nullable=True)
     village = Column(String, nullable=True)
     street_address = Column(String, nullable=True)
+    profile_image_url = Column(String, nullable=True)
+    
+    # Geographic location coordinates and labels
+    location_name = Column(String, nullable=True)
+    latitude = Column(Numeric(10, 8), nullable=True)
+    longitude = Column(Numeric(11, 8), nullable=True)
+
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)

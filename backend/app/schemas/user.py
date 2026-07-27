@@ -17,6 +17,7 @@ class UserBase(BaseModel):
     commune: Optional[str] = Field(None, description="The commune/sangkat name (optional)")
     village: Optional[str] = Field(None, description="The village name (optional)")
     street_address: Optional[str] = Field(None, description="The street address/house number (optional)")
+    profile_image_url: Optional[str] = Field(None, description="The URL of the user's profile image (optional)")
 
     @field_validator("email")
     @classmethod
@@ -52,6 +53,7 @@ class UserUpdate(BaseModel):
     commune: Optional[str] = None
     village: Optional[str] = None
     street_address: Optional[str] = None
+    profile_image_url: Optional[str] = None
 
     @field_validator("password")
     @classmethod

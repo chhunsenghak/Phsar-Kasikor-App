@@ -59,12 +59,12 @@ root_logger.addHandler(console_handler)
 
 logger = logging.getLogger("app")
 
-# Create database tables automatically if they don't exist
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables initialized successfully.")
-except Exception as e:
-    logger.error("Failed to initialize database tables.", exc_info=e)
+# Create database tables automatically if they don't exist (disabled in favor of Alembic migrations)
+# try:
+#     Base.metadata.create_all(bind=engine)
+#     logger.info("Database tables initialized successfully.")
+# except Exception as e:
+#     logger.error("Failed to initialize database tables.", exc_info=e)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

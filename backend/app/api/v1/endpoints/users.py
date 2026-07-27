@@ -39,6 +39,19 @@ def register_user(
     return user_service.create_user(db, user_in=user_in)
 
 
+@router.get("/", response_model=list[UserOut])
+def read_users(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Get all active users.
+    """
+    return user_service.get_all_users(db, skip, limit)
+
+
 @router.get("/me", response_model=UserOut)
 def read_user_me(
     current_user: User = Depends(deps.get_current_user)

@@ -3,9 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.core import errors, security
+from app.core import errors, security, success
 from app.core.database import get_db
 from app.schemas.user import Token, UserCreate
+from app.schemas.base import SuccessResponse
 from app.services import user_service
 
 router = APIRouter()
@@ -40,14 +41,12 @@ def login(
     }
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=SuccessResponse)
 def logout() -> Any:
     """
-    Log out the current user. Since this application uses stateless JWT authentication,
-    this endpoint returns a success message confirming the logout action,
-    directing the client application to delete/discard the access token locally.
+    Log out the current user by returning a standard success response.
     """
-    return {"message": "Successfully logged out"}
+    return success.make_success_response(success.LOGOUT_SUCCESS)
 
 
 import json

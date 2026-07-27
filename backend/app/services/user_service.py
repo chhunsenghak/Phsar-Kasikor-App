@@ -78,3 +78,10 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     if not verify_password(password, user.password):
         return None
     return user
+
+
+def get_all_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
+    """
+    Retrieve all active users from the database.
+    """
+    return db.query(User).offset(skip).limit(limit).all()
