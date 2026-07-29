@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 
@@ -13,6 +14,7 @@ class CustomInput extends StatelessWidget {
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
 
   const CustomInput({
     super.key,
@@ -26,6 +28,7 @@ class CustomInput extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.validator,
     this.onChanged,
+    this.inputFormatters,
   });
 
   @override
@@ -52,6 +55,7 @@ class CustomInput extends StatelessWidget {
           keyboardType: keyboardType,
           validator: validator,
           onChanged: onChanged,
+          inputFormatters: inputFormatters,
           style: GoogleFonts.inter(
             fontSize: 16,
             color: AppColors.onSurface,

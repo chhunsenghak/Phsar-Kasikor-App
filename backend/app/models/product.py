@@ -14,6 +14,7 @@ class Product(Base):
     category_id = Column(String(36), ForeignKey("categories.id"), nullable=False)
     price_per_unit = Column(Numeric(10, 2), nullable=False)
     unit_type = Column(String, nullable=False) # e.g. Kilogram, Sack, Ton
+    currency = Column(String, default="USD", nullable=False) # USD or KHR
     quantity_available = Column(Numeric(10, 2), nullable=False)
     harvest_date = Column(Date, nullable=True)
     quality_certification_metadata = Column(Text, nullable=True)

@@ -27,10 +27,12 @@ def create_product(db: Session, product_in: ProductCreate, seller_id: str) -> Pr
         category_id=product_in.category_id,
         price_per_unit=product_in.price_per_unit,
         unit_type=product_in.unit_type,
+        currency=product_in.currency,
         quantity_available=product_in.quantity_available,
         harvest_date=product_in.harvest_date,
         quality_certification_metadata=product_in.quality_certification_metadata,
-        status=product_in.status
+        status=product_in.status,
+        image_url=product_in.image_url
     )
     db.add(db_product)
     db.commit()

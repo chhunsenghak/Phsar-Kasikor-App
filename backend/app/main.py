@@ -3,6 +3,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
+from fastapi.staticfiles import StaticFiles
+import os
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import traceback
@@ -65,6 +67,14 @@ logger = logging.getLogger("app")
 #     logger.info("Database tables initialized successfully.")
 # except Exception as e:
 #     logger.error("Failed to initialize database tables.", exc_info=e)
+
+from sqlalchemy import text
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE products ADD COLUMN currency VARCHAR DEFAULT 'USD'"))
+        logger.info("Added currency column to products table successfully.")
+except Exception as e:
+    logger.info(f"Currency column check/creation skipped: {e}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -180,6 +190,10 @@ async def global_exception_handler(request: Request, exc: Exception):
             "message": errors.INTERNAL_SERVER_ERROR
         },
     )
+
+# Create and mount static folder for uploads
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include versioned API routers
 app.include_router(api_router, prefix=settings.API_V1_STR)

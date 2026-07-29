@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'models/app_state.dart';
-import 'screens/splash_screen.dart';
+import 'screens/common/splash_screen.dart';
 import 'services/config_service.dart';
 
 void main() async {
