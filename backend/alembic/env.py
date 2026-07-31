@@ -19,6 +19,7 @@ from app.models.delivery import Delivery
 from app.models.notification import Notification
 from app.models.category import Category
 from app.models.chat import ChatMessage
+from app.models.address_change_request import AddressChangeRequest
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

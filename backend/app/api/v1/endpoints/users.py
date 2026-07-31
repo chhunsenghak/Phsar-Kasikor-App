@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -60,3 +60,18 @@ def read_user_me(
     Get current active user details.
     """
     return current_user
+
+
+@router.put("/me", response_model=UserOut)
+def update_user_me(
+    *,
+    db: Session = Depends(get_db),
+    user_in: Dict[str, Any],
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Update current user profile details (such as address).
+    """
+    allowed_keys = {"province", "district", "commune", "village", "street_address", "latitude", "longitude"}
+    update_data = {k: v for k, v in user_in.items() if k in allowed_keys}
+    return user_service.update_user(db, db_obj=current_user, obj_in=update_data)

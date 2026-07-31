@@ -97,7 +97,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     return TextField(
       onChanged: (val) => state.setSearchQuery(val),
       decoration: InputDecoration(
-        hintText: 'Search fresh crops, farmers...',
+        hintText: state.translate('search_hint'),
         hintStyle: GoogleFonts.inter(color: AppColors.outline),
         prefixIcon: const Icon(Icons.search_rounded, color: AppColors.outline),
         filled: true,
@@ -123,7 +123,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
           final isSelected = state.selectedCategory == category;
           return ChoiceChip(
             label: Text(
-              category,
+              state.translate(category.toLowerCase()),
               style: GoogleFonts.inter(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: isSelected ? AppColors.onSecondaryContainer : AppColors.onSurfaceVariant,

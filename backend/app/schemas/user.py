@@ -18,6 +18,8 @@ class UserBase(BaseModel):
     village: Optional[str] = Field(None, description="The village name (optional)")
     street_address: Optional[str] = Field(None, description="The street address/house number (optional)")
     profile_image_url: Optional[str] = Field(None, description="The URL of the user's profile image (optional)")
+    latitude: Optional[float] = Field(None, description="The latitude coordinates (optional)")
+    longitude: Optional[float] = Field(None, description="The longitude coordinates (optional)")
 
     @field_validator("email")
     @classmethod
@@ -54,6 +56,8 @@ class UserUpdate(BaseModel):
     village: Optional[str] = None
     street_address: Optional[str] = None
     profile_image_url: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     @field_validator("password")
     @classmethod

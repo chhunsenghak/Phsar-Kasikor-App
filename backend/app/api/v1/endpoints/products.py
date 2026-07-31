@@ -79,5 +79,18 @@ def delete_product(
         raise HTTPException(status_code=404, detail=errors.PRODUCT_NOT_FOUND)
     if db_product.seller_id != current_user.id:
         raise HTTPException(status_code=403, detail=errors.NOT_AUTHORIZED)
+        
+    # Check if this product is linked to any contracts or orders
+    from app.models.contract import ContractItem
+    from app.models.order_item import OrderItem
+    
+    contract_exists = db.query(ContractItem).filter(ContractItem.product_id == product_id).first()
+    order_exists = db.query(OrderItem).filter(OrderItem.product_id == product_id).first()
+    if contract_exists or order_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=errors.PRODUCT_HAS_RELATED_INFO
+        )
+
     product_service.delete_product(db, product_id=product_id)
     return success.make_success_response(success.PRODUCT_DELETED)

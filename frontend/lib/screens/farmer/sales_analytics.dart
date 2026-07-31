@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
+import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 
 class SalesAnalyticsScreen extends StatelessWidget {
@@ -8,6 +10,8 @@ class SalesAnalyticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context);
+
     // Mock monthly revenues
     final List<Map<String, dynamic>> monthlyRevenues = [
       {'month': 'Jan', 'value': 280.0},
@@ -32,7 +36,7 @@ class SalesAnalyticsScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Sales & Analytics',
+          state.translate('sales_analytics'),
           style: GoogleFonts.inter(
             color: AppColors.onSurface,
             fontWeight: FontWeight.bold,
@@ -53,7 +57,7 @@ class SalesAnalyticsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Yearly Sales Revenue',
+                    state.translate('yearly_sales_revenue'),
                     style: GoogleFonts.inter(
                       color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 14,
@@ -72,9 +76,9 @@ class SalesAnalyticsScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildMetricItem('Active Listings', '3 Crops'),
-                      _buildMetricItem('Conversion Rate', '4.2%'),
-                      _buildMetricItem('Bids Accepted', '14 Offers'),
+                      _buildMetricItem(state.translate('active_listings'), '3'),
+                      _buildMetricItem(state.translate('conversion_rate'), '4.2%'),
+                      _buildMetricItem(state.translate('bids_accepted'), '14'),
                     ],
                   )
                 ],
@@ -84,7 +88,7 @@ class SalesAnalyticsScreen extends StatelessWidget {
 
             // Bar Chart Container
             Text(
-              'Monthly Sales Performance (USD)',
+              state.translate('monthly_performance'),
               style: GoogleFonts.inter(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -161,7 +165,7 @@ class SalesAnalyticsScreen extends StatelessWidget {
 
             // Sales breakdown insights
             Text(
-              'Product Performance Breakdowns',
+              state.translate('product_performance_breakdowns'),
               style: GoogleFonts.inter(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

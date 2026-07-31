@@ -49,7 +49,7 @@ class FarmerDashboardScreen extends StatelessWidget {
             const SizedBox(height: 24),
             _buildIncomingBids(state, activeBids),
             const SizedBox(height: 24),
-            _buildCropListings(myProducts),
+            _buildCropListings(context, myProducts),
             const SizedBox(height: 40),
           ],
         ),
@@ -66,7 +66,7 @@ class FarmerDashboardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Farmer Dashboard',
+              state.translate('farmer_dashboard'),
               style: GoogleFonts.inter(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -75,7 +75,7 @@ class FarmerDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Manage crops, view sales & respond to bids',
+              state.translate('manage_crops_subtitle'),
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: AppColors.onSurfaceVariant,
@@ -141,6 +141,7 @@ class FarmerDashboardScreen extends StatelessWidget {
   }
 
   Widget _buildPerformanceStats(BuildContext context, List<BidOffer> activeBids) {
+    final state = Provider.of<AppState>(context, listen: false);
     return Row(
       children: [
         Expanded(
@@ -165,7 +166,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Total Revenue ↗',
+                  state.translate('total_revenue_trend'),
                   style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                 ),
               ],
@@ -187,7 +188,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Active Negotiations',
+                  state.translate('active_negotiations'),
                   style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                 ),
               ],
@@ -203,7 +204,7 @@ class FarmerDashboardScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Incoming Buyer Bids (${activeBids.length})',
+          state.translate('incoming_buyer_bids', arguments: {'count': activeBids.length.toString()}),
           style: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -216,7 +217,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 child: Center(
                   child: Text(
-                    'No active buyer bids on your listings.',
+                    state.translate('no_active_bids'),
                     style: GoogleFonts.inter(color: AppColors.outline),
                   ),
                 ),
@@ -261,12 +262,15 @@ class FarmerDashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Product: ${bid.product.name}',
+                          state.translate('product_prefix', arguments: {'name': bid.product.name}),
                           style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Offer details: \$${bid.offeredPrice.toStringAsFixed(2)}/kg for ${bid.quantity.toInt()} kgs',
+                          state.translate('offer_details', arguments: {
+                            'price': bid.offeredPrice.toStringAsFixed(2),
+                            'qty': bid.quantity.toInt().toString(),
+                          }),
                           style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         if (isPending) ...[
@@ -275,7 +279,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: CustomButton(
-                                  text: 'Accept',
+                                  text: state.translate('accept'),
                                   height: 38,
                                   onPressed: () {
                                     state.acceptBid(bid.id);
@@ -285,7 +289,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: CustomButton.secondary(
-                                  text: 'Reject',
+                                  text: state.translate('reject'),
                                   height: 38,
                                   backgroundColor: AppColors.errorContainer,
                                   textColor: AppColors.onErrorContainer,
@@ -306,12 +310,13 @@ class FarmerDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCropListings(List<MarketProduct> myProducts) {
+  Widget _buildCropListings(BuildContext context, List<MarketProduct> myProducts) {
+    final state = Provider.of<AppState>(context, listen: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'My Crop Listings (${myProducts.length})',
+          state.translate('my_crop_listings', arguments: {'count': myProducts.length.toString()}),
           style: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -324,7 +329,7 @@ class FarmerDashboardScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 child: Center(
                   child: Text(
-                    'You have not listed any products yet.',
+                    state.translate('no_listings_yet'),
                     style: GoogleFonts.inter(color: AppColors.outline),
                   ),
                 ),
@@ -390,19 +395,74 @@ class FarmerDashboardScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Category: ${prod.category} | Stock: ${prod.quantity.toInt()} ${prod.unit}s',
+                                state.translate('category_stock_info', arguments: {
+                                  'category': state.translate(prod.category.toLowerCase()),
+                                  'qty': prod.quantity.toInt().toString(),
+                                  'unit': state.translate('unit_${prod.unit.toLowerCase()}'),
+                                }),
                                 style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                               ),
                             ],
                           ),
                         ),
-                        Text(
-                          '${prod.formattedPrice}/${prod.unit}',
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                            fontSize: 15,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${prod.formattedPrice}/${prod.unit}',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                                fontSize: 14,
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              icon: const Icon(
+                                Icons.more_horiz_rounded,
+                                color: AppColors.outline,
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 100),
+                              onSelected: (val) {
+                                if (val == 'edit') {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ImprovedAddNewProductScreen(product: prod),
+                                    ),
+                                  );
+                                } else if (val == 'delete') {
+                                  _confirmDelete(context, state, prod);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.edit_rounded, size: 16, color: AppColors.onSurfaceVariant),
+                                      const SizedBox(width: 8),
+                                      Text(state.translate('edit')),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.error),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        state.translate('delete'),
+                                        style: const TextStyle(color: AppColors.error),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -410,6 +470,168 @@ class FarmerDashboardScreen extends StatelessWidget {
                 },
               ),
       ],
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, AppState state, MarketProduct prod) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          state.translate('delete_product_title'),
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          state.translate('delete_product_confirm'),
+          style: GoogleFonts.inter(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            child: Text(
+              state.translate('cancel'),
+              style: GoogleFonts.inter(color: AppColors.outline),
+            ),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          TextButton(
+            child: Text(
+              state.translate('delete'),
+              style: GoogleFonts.inter(color: AppColors.error, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final error = await state.deleteProduct(prod.id);
+      
+      if (context.mounted) {
+        Navigator.pop(context); // Dismiss loading
+        
+        if (error == null) {
+          _showPremiumStatusDialog(
+            context,
+            state,
+            state.translate('success'),
+            state.translate('delete_success'),
+            true,
+          );
+        } else {
+          final bool hasRelated = error.contains('PRODUCT_HAS_RELATED_INFO');
+          final displayMsg = hasRelated
+              ? state.translate('product_has_related_info')
+              : error;
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.error,
+              content: Text(
+                displayMsg,
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showPremiumStatusDialog(BuildContext context, AppState state, String title, String body, bool isSuccess) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Status Dialog',
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (context, anim1, anim2) {
+        return const SizedBox.shrink();
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curve = CurvedAnimation(parent: anim1, curve: Curves.easeOutBack);
+        return ScaleTransition(
+          scale: curve,
+          child: Align(
+            alignment: Alignment.center,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: (isSuccess ? AppColors.primary : AppColors.error).withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isSuccess ? AppColors.primary : AppColors.error).withValues(alpha: 0.15),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    )
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: (isSuccess ? AppColors.primary : AppColors.error).withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isSuccess ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
+                        color: isSuccess ? AppColors.primary : AppColors.error,
+                        size: 48,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      body,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: AppColors.onSurfaceVariant,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: CustomButton(
+                        text: state.translate('ok'),
+                        backgroundColor: isSuccess ? AppColors.primary : AppColors.error,
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

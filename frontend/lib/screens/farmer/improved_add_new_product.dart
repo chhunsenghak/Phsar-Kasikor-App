@@ -75,6 +75,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to pick image: $e')),
       );
@@ -112,6 +113,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           }
         } catch (e) {
           debugPrint('Image upload failed: $e');
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Image upload failed: $e. Saving product.')),
           );
@@ -144,17 +146,10 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
         _isUploading = false;
       });
 
+      if (!mounted) return;
       Navigator.pop(context);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.product != null
-                ? state.translate('update_success', arguments: {'name': name})
-                : state.translate('add_success', arguments: {'name': name}),
-          ),
-        ),
-      );
+      // Product successfully saved and popped back silently.
     }
   }
 
@@ -237,7 +232,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
             backgroundColor: AppColors.surfaceContainerLow,
             borderSide: const BorderSide(color: AppColors.outlineVariant, style: BorderStyle.solid),
             child: _selectedImageBytes != null
-                ? Container(
+                ? SizedBox(
                     height: 150,
                     width: double.infinity,
                     child: Stack(
@@ -258,7 +253,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
                     ),
                   )
                 : (_uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty)
-                    ? Container(
+                    ? SizedBox(
                         height: 150,
                         width: double.infinity,
                         child: Stack(
@@ -449,7 +444,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           state.translate('currency'),
           style: GoogleFonts.inter(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w900,
             color: AppColors.onSurfaceVariant,
           ),
         ),
@@ -529,7 +524,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           state.translate('crop_details'),
           style: GoogleFonts.inter(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w900,
             color: AppColors.onSurfaceVariant,
           ),
         ),

@@ -42,7 +42,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
   }
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
+    final picker = ImagePicker();
     try {
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
@@ -59,18 +59,19 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to pick image: $e')),
       );
     }
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit(AppState state) async {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedImageBytes == null || _selectedImageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload an image of your certificate.')),
+        SnackBar(content: Text(state.translate('please_upload_image_error'))),
       );
       return;
     }
@@ -79,9 +80,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
       _isSubmitting = true;
     });
 
-    final state = Provider.of<AppState>(context, listen: false);
     final String? token = state.token;
-
     String docUrl = '';
 
     try {
@@ -128,14 +127,14 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Certificate submitted for review successfully!')),
+          SnackBar(content: Text(state.translate('cert_submit_success'))),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit certificate: $e')),
+          SnackBar(content: Text(state.translate('cert_submit_failed', arguments: {'error': e.toString()}))),
         );
       }
     } finally {
@@ -149,6 +148,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -159,7 +159,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Submit Verification Documents',
+          state.translate('submit_verification_docs'),
           style: GoogleFonts.inter(
             color: AppColors.onSurface,
             fontWeight: FontWeight.bold,
@@ -185,7 +185,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Farmer Identity Verification',
+                      state.translate('farmer_identity_verification'),
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -194,7 +194,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Please provide your organic certs, agricultural cooperative license, or district trading permits.',
+                      state.translate('identity_verification_desc'),
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         fontSize: 12,
@@ -205,13 +205,13 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildPhotoUploader(),
+              _buildPhotoUploader(state),
               const SizedBox(height: 24),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Certification Standard / Class',
+                    state.translate('certification_standard_class'),
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -230,11 +230,11 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                       value: _selectedCertType,
                       isExpanded: true,
                       underline: const SizedBox(),
-                      items: const [
-                        DropdownMenuItem(value: 'organic', child: Text('Organic Standard (COrAA)')),
-                        DropdownMenuItem(value: 'gap', child: Text('Good Agricultural Practices (CamGAP)')),
-                        DropdownMenuItem(value: 'gi', child: Text('Geographical Indication (GI)')),
-                        DropdownMenuItem(value: 'general', child: Text('General Farm Trade Permit')),
+                      items: [
+                        DropdownMenuItem(value: 'organic', child: Text(state.translate('cert_type_organic'))),
+                        DropdownMenuItem(value: 'gap', child: Text(state.translate('cert_type_gap'))),
+                        DropdownMenuItem(value: 'gi', child: Text(state.translate('cert_type_gi'))),
+                        DropdownMenuItem(value: 'general', child: Text(state.translate('cert_type_general'))),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -249,31 +249,31 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
               ),
               const SizedBox(height: 16),
               CustomInput(
-                label: 'Certificate Name / Type',
-                hintText: 'e.g. Battambang Organic Farming Permit',
+                label: state.translate('cert_name_type'),
+                hintText: state.translate('cert_name_hint'),
                 controller: _nameController,
-                validator: (val) => val == null || val.isEmpty ? 'Please enter name' : null,
+                validator: (val) => val == null || val.isEmpty ? state.translate('please_enter_name') : null,
               ),
               const SizedBox(height: 16),
               CustomInput(
-                label: 'Certificate/Permit Number',
-                hintText: 'e.g. CERT-2026-98754',
+                label: state.translate('cert_number'),
+                hintText: state.translate('cert_number_hint'),
                 controller: _numberController,
-                validator: (val) => val == null || val.isEmpty ? 'Please enter permit number' : null,
+                validator: (val) => val == null || val.isEmpty ? state.translate('please_enter_number') : null,
               ),
               const SizedBox(height: 16),
               CustomInput(
-                label: 'Issuing Authority',
-                hintText: 'e.g. Ministry of Agriculture, Forestry and Fisheries',
+                label: state.translate('issuing_authority'),
+                hintText: state.translate('issuing_authority_hint'),
                 controller: _authorityController,
-                validator: (val) => val == null || val.isEmpty ? 'Please enter authority' : null,
+                validator: (val) => val == null || val.isEmpty ? state.translate('please_enter_authority') : null,
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: CustomInput(
-                      label: 'Issue Date',
+                      label: state.translate('issue_date'),
                       hintText: 'YYYY-MM-DD',
                       controller: _issueDateController,
                     ),
@@ -281,7 +281,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: CustomInput(
-                      label: 'Expiry Date',
+                      label: state.translate('expiry_date'),
                       hintText: 'YYYY-MM-DD',
                       controller: _expiryDateController,
                     ),
@@ -293,9 +293,9 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                 const Center(child: CircularProgressIndicator(color: AppColors.primary))
               else
                 CustomButton(
-                  text: 'Submit Credentials',
+                  text: state.translate('submit_credentials'),
                   icon: Icons.send_rounded,
-                  onPressed: _submit,
+                  onPressed: () => _submit(state),
                 ),
             ],
           ),
@@ -304,12 +304,12 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
     );
   }
 
-  Widget _buildPhotoUploader() {
+  Widget _buildPhotoUploader(AppState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Certificate Photo / Scan',
+          state.translate('cert_photo_scan'),
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -326,7 +326,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
             backgroundColor: AppColors.surfaceContainerLow,
             borderSide: const BorderSide(color: AppColors.outlineVariant, style: BorderStyle.solid),
             child: _selectedImageBytes != null
-                ? Container(
+                ? SizedBox(
                     height: 180,
                     width: double.infinity,
                     child: Stack(
@@ -356,7 +356,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Upload License or Permit Image',
+                          state.translate('upload_license_image'),
                           style: GoogleFonts.inter(
                             fontWeight: FontWeight.bold,
                             color: AppColors.primary,
@@ -365,7 +365,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Supports JPEG, PNG up to 5MB',
+                          state.translate('supports_image_specs'),
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             color: AppColors.outline,

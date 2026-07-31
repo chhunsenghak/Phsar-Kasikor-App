@@ -1,9 +1,9 @@
 import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Numeric
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
-
+from typing import Optional
 from app.models.base import Base
 
 class UserRole(str, enum.Enum):
@@ -21,17 +21,8 @@ class User(Base):
     password = Column(String, nullable=False)
     username = Column(String, nullable=True)
     phoneNumber= Column(String, nullable=False, unique=True, index=True)
-    province = Column(String, nullable=True)
-    district = Column(String, nullable=True)
-    commune = Column(String, nullable=True)
-    village = Column(String, nullable=True)
-    street_address = Column(String, nullable=True)
     profile_image_url = Column(String, nullable=True)
-    
-    # Geographic location coordinates and labels
-    location_name = Column(String, nullable=True)
-    latitude = Column(Numeric(10, 8), nullable=True)
-    longitude = Column(Numeric(11, 8), nullable=True)
+    address_id = Column(String(36), ForeignKey("address_change_requests.id", use_alter=True, name="fk_user_address"), nullable=True)
 
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
@@ -44,8 +35,9 @@ class User(Base):
         nullable=False
     )
 
-    # Relationship to Role model via UserRole junction table
+    # Relationships
     roles = relationship("Role", secondary="user_roles", back_populates="users")
+    address = relationship("AddressChangeRequest", foreign_keys=[address_id], post_update=True)
 
     @property
     def role_id(self) -> int:
@@ -57,3 +49,32 @@ class User(Base):
     def role_id(self, value):
         # Setter is defined to prevent exceptions during keyword instantiation
         pass
+
+    # Dynamic location properties (backward compatible with Pydantic serialization)
+    @property
+    def province(self) -> Optional[str]:
+        return self.address.province if self.address else None
+
+    @property
+    def district(self) -> Optional[str]:
+        return self.address.district if self.address else None
+
+    @property
+    def commune(self) -> Optional[str]:
+        return self.address.commune if self.address else None
+
+    @property
+    def village(self) -> Optional[str]:
+        return self.address.village if self.address else None
+
+    @property
+    def street_address(self) -> Optional[str]:
+        return self.address.street_address if self.address else None
+
+    @property
+    def latitude(self) -> Optional[float]:
+        return float(self.address.latitude) if (self.address and self.address.latitude is not None) else None
+
+    @property
+    def longitude(self) -> Optional[float]:
+        return float(self.address.longitude) if (self.address and self.address.longitude is not None) else None

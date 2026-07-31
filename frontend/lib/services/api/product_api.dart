@@ -33,4 +33,9 @@ class ProductApi {
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }
+
+  static Future<List<dynamic>> fetchCategories() async {
+    final response = await http.get(Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/categories/'));
+    return BaseApi.handleResponse(response) as List<dynamic>;
+  }
 }

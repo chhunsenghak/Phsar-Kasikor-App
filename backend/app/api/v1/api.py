@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, users, roles, products, categories, market_prices, orders, contracts, deliveries, notifications, chat, upload, locations
+from app.api.v1.endpoints import auth, users, roles, products, categories, market_prices, orders, contracts, deliveries, notifications, chat, upload, locations, address_requests
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -16,3 +16,4 @@ api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(upload.router, prefix="/upload", tags=["Upload"])
 api_router.include_router(locations.router, prefix="/locations", tags=["Locations"])
+api_router.include_router(address_requests.router, prefix="/address-requests", tags=["Address Requests"])

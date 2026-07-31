@@ -81,7 +81,7 @@ class _AppShellState extends State<AppShell> {
             ),
             child: Center(
               child: Text(
-                role.toUpperCase(),
+                state.translate('role_${role.toLowerCase()}').toUpperCase(),
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,

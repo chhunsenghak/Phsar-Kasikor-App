@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,15 @@ class UserProfileSettingsScreen extends StatefulWidget {
 
 class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   final _addressFormKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = Provider.of<AppState>(context, listen: false);
+      state.refreshAddressRequests();
+    });
+  }
   final _provinceController = TextEditingController();
   final _districtController = TextEditingController();
   final _communeController = TextEditingController();
@@ -47,8 +57,10 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
         children: [
           _buildProfileHeader(state),
           const SizedBox(height: 20),
-          _buildAddressCard(state),
-          const SizedBox(height: 24),
+          if (state.currentRole != 'admin') ...[
+            _buildAddressCard(state),
+            const SizedBox(height: 24),
+          ],
           _buildSettingsSection(context, state),
           const SizedBox(height: 32),
           _buildLogoutButton(context, state),
@@ -119,18 +131,49 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                state.translate('farm_location_address'),
+                state.translate('current_address'),
                 style: GoogleFonts.inter(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                   color: AppColors.onSurface,
                 ),
               ),
-              TextButton.icon(
-                icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
-                label: Text(state.translate('edit_address')),
-                onPressed: () => _showAddressEditSheet(state),
-              ),
+              if (state.currentRole == 'farmer' || state.currentRole == 'association') ...[
+                if (state.hasPendingAddressRequest(state.userName))
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.hourglass_empty_rounded, size: 14, color: Colors.amber),
+                        const SizedBox(width: 4),
+                        Text(
+                          state.translate('address_change_pending'),
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  TextButton.icon(
+                    icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
+                    label: Text(state.translate('edit_address')),
+                    onPressed: () => _showAddressEditSheet(state),
+                  )
+              ] else ...[
+                TextButton.icon(
+                  icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
+                  label: Text(state.translate('edit_address')),
+                  onPressed: () => _showAddressEditSheet(state),
+                )
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -164,7 +207,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                 _buildAddressRow(state.translate('village'), state.translateLocation(profile?['village'])),
                 if (profile?['street_address'] != null && profile!['street_address'].toString().trim().isNotEmpty) ...[
                   const Divider(height: 12),
-                  _buildAddressRow(state.translate('street_address_optional').replaceAll(' (Optional)', ''), profile['street_address']),
+                  _buildAddressRow(state.translate('street_no'), profile['street_address']),
                 ],
               ],
             ),
@@ -203,32 +246,105 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   }
 
   void _showAddressEditSheet(AppState state) {
-    final locations = state.cambodiaLocations;
+    final provinces = state.getProvincesMap();
+    if (provinces.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Loading location data, please try again...')),
+      );
+      return;
+    }
     final profile = state.userProfile;
 
-    // Resolve initial values from profile or fallback safely to first database items
-    String tempProvince = profile?['province']?.toString() ?? locations.keys.first;
-    if (!locations.containsKey(tempProvince)) {
-      tempProvince = locations.keys.first;
+    // Helper functions to resolve dynamic values (could be English name, Khmer name, or ID)
+    // to their standard stable unique IDs.
+    String findProvinceId(dynamic val) {
+      if (val == null) return provinces.keys.first;
+      final String valStr = val.toString().trim();
+      if (provinces.containsKey(valStr)) return valStr;
+
+      final rawProvinces = state.rawLocations['provinces'] as List<dynamic>? ?? [];
+      for (var p in rawProvinces) {
+        final pNames = p['name'] as Map<String, dynamic>?;
+        if (pNames?['en'] == valStr || pNames?['kh'] == valStr || p['id'] == valStr) {
+          return p['id']?.toString() ?? provinces.keys.first;
+        }
+      }
+      return provinces.keys.first;
     }
 
-    Map<String, dynamic> districts = locations[tempProvince] as Map<String, dynamic>;
-    String tempDistrict = profile?['district']?.toString() ?? districts.keys.first;
-    if (!districts.containsKey(tempDistrict)) {
-      tempDistrict = districts.keys.first;
+    String findDistrictId(dynamic val, String provId) {
+      final districts = state.getDistrictsMap(provId);
+      if (districts.isEmpty) return '';
+      if (val == null) return districts.keys.first;
+      final String valStr = val.toString().trim();
+      if (districts.containsKey(valStr)) return valStr;
+
+      final rawProvinces = state.rawLocations['provinces'] as List<dynamic>? ?? [];
+      for (var p in rawProvinces) {
+        if (p['id']?.toString() == provId) {
+          for (var d in p['districts'] ?? []) {
+            final dNames = d['name'] as Map<String, dynamic>?;
+            if (dNames?['en'] == valStr || dNames?['kh'] == valStr || d['id'] == valStr) {
+              return d['id']?.toString() ?? districts.keys.first;
+            }
+          }
+        }
+      }
+      return districts.keys.first;
     }
 
-    Map<String, dynamic> communes = districts[tempDistrict] as Map<String, dynamic>;
-    String tempCommune = profile?['commune']?.toString() ?? communes.keys.first;
-    if (!communes.containsKey(tempCommune)) {
-      tempCommune = communes.keys.first;
+    String findCommuneId(dynamic val, String distId) {
+      final communes = state.getCommunesMap(distId);
+      if (communes.isEmpty) return '';
+      if (val == null) return communes.keys.first;
+      final String valStr = val.toString().trim();
+      if (communes.containsKey(valStr)) return valStr;
+
+      final rawProvinces = state.rawLocations['provinces'] as List<dynamic>? ?? [];
+      for (var p in rawProvinces) {
+        for (var d in p['districts'] ?? []) {
+          if (d['id']?.toString() == distId) {
+            for (var c in d['communes'] ?? []) {
+              final cNames = c['name'] as Map<String, dynamic>?;
+              if (cNames?['en'] == valStr || cNames?['kh'] == valStr || c['id'] == valStr) {
+                return c['id']?.toString() ?? communes.keys.first;
+              }
+            }
+          }
+        }
+      }
+      return communes.keys.first;
     }
 
-    List<dynamic> villages = communes[tempCommune] as List<dynamic>;
-    String tempVillage = profile?['village']?.toString() ?? villages.first.toString();
-    if (!villages.contains(tempVillage)) {
-      tempVillage = villages.first.toString();
+    String findVillageId(dynamic val, String commId) {
+      final villages = state.getVillagesMap(commId);
+      if (villages.isEmpty) return '';
+      if (val == null) return villages.keys.first;
+      final String valStr = val.toString().trim();
+      if (villages.containsKey(valStr)) return valStr;
+
+      final rawProvinces = state.rawLocations['provinces'] as List<dynamic>? ?? [];
+      for (var p in rawProvinces) {
+        for (var d in p['districts'] ?? []) {
+          for (var c in d['communes'] ?? []) {
+            if (c['id']?.toString() == commId) {
+              for (var v in c['villages'] ?? []) {
+                final vNames = v['name'] as Map<String, dynamic>?;
+                if (vNames?['en'] == valStr || vNames?['kh'] == valStr || v['id'] == valStr) {
+                  return v['id']?.toString() ?? villages.keys.first;
+                }
+              }
+            }
+          }
+        }
+      }
+      return villages.keys.first;
     }
+
+    String tempProvince = findProvinceId(profile?['province']);
+    String tempDistrict = findDistrictId(profile?['district'], tempProvince);
+    String tempCommune = findCommuneId(profile?['commune'], tempDistrict);
+    String tempVillage = findVillageId(profile?['village'], tempCommune);
 
     _streetController.text = profile?['street_address']?.toString() ?? '';
 
@@ -241,25 +357,25 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
       ),
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) {
-          // Cascading fallback resolver for current selections
-          final provinceList = locations.keys.toList();
-
-          final Map<String, dynamic> currentDistricts = locations[tempProvince] as Map<String, dynamic>;
-          final districtList = currentDistricts.keys.toList();
-          if (!districtList.contains(tempDistrict)) {
-            tempDistrict = districtList.first;
+          // Resolve current maps based on cascades
+          final provinceMap = state.getProvincesMap();
+          if (!provinceMap.containsKey(tempProvince)) {
+            tempProvince = provinceMap.isNotEmpty ? provinceMap.keys.first : '';
           }
 
-          final Map<String, dynamic> currentCommunes = currentDistricts[tempDistrict] as Map<String, dynamic>;
-          final communeList = currentCommunes.keys.toList();
-          if (!communeList.contains(tempCommune)) {
-            tempCommune = communeList.first;
+          final districtMap = state.getDistrictsMap(tempProvince);
+          if (!districtMap.containsKey(tempDistrict)) {
+            tempDistrict = districtMap.isNotEmpty ? districtMap.keys.first : '';
           }
 
-          final List<dynamic> currentVillages = currentCommunes[tempCommune] as List<dynamic>;
-          final villageList = currentVillages.map((v) => v.toString()).toList();
-          if (!villageList.contains(tempVillage)) {
-            tempVillage = villageList.first;
+          final communeMap = state.getCommunesMap(tempDistrict);
+          if (!communeMap.containsKey(tempCommune)) {
+            tempCommune = communeMap.isNotEmpty ? communeMap.keys.first : '';
+          }
+
+          final villageMap = state.getVillagesMap(tempCommune);
+          if (!villageMap.containsKey(tempVillage)) {
+            tempVillage = villageMap.isNotEmpty ? villageMap.keys.first : '';
           }
 
           return Padding(
@@ -277,7 +393,9 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      state.translate('update_farm_address'),
+                      (state.currentRole == 'farmer' || state.currentRole == 'association')
+                          ? state.translate('update_farm_address')
+                          : state.translate('update_current_address'),
                       style: GoogleFonts.inter(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -289,17 +407,17 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                     _buildDropdownField(
                       label: state.translate('province_city'),
                       value: tempProvince,
-                      items: provinceList,
+                      itemsMap: provinceMap,
                       onChanged: (val) {
                         if (val != null) {
                           setSheetState(() {
                             tempProvince = val;
-                            final Map<String, dynamic> nextDistricts = locations[tempProvince] as Map<String, dynamic>;
-                            tempDistrict = nextDistricts.keys.first;
-                            final Map<String, dynamic> nextCommunes = nextDistricts[tempDistrict] as Map<String, dynamic>;
-                            tempCommune = nextCommunes.keys.first;
-                            final List<dynamic> nextVillages = nextCommunes[tempCommune] as List<dynamic>;
-                            tempVillage = nextVillages.first.toString();
+                            final dMap = state.getDistrictsMap(tempProvince);
+                            tempDistrict = dMap.isNotEmpty ? dMap.keys.first : '';
+                            final cMap = state.getCommunesMap(tempDistrict);
+                            tempCommune = cMap.isNotEmpty ? cMap.keys.first : '';
+                            final vMap = state.getVillagesMap(tempCommune);
+                            tempVillage = vMap.isNotEmpty ? vMap.keys.first : '';
                           });
                         }
                       },
@@ -309,15 +427,15 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                     _buildDropdownField(
                       label: state.translate('district'),
                       value: tempDistrict,
-                      items: districtList,
+                      itemsMap: districtMap,
                       onChanged: (val) {
                         if (val != null) {
                           setSheetState(() {
                             tempDistrict = val;
-                            final Map<String, dynamic> nextCommunes = currentDistricts[tempDistrict] as Map<String, dynamic>;
-                            tempCommune = nextCommunes.keys.first;
-                            final List<dynamic> nextVillages = nextCommunes[tempCommune] as List<dynamic>;
-                            tempVillage = nextVillages.first.toString();
+                            final cMap = state.getCommunesMap(tempDistrict);
+                            tempCommune = cMap.isNotEmpty ? cMap.keys.first : '';
+                            final vMap = state.getVillagesMap(tempCommune);
+                            tempVillage = vMap.isNotEmpty ? vMap.keys.first : '';
                           });
                         }
                       },
@@ -327,13 +445,13 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                     _buildDropdownField(
                       label: state.translate('commune'),
                       value: tempCommune,
-                      items: communeList,
+                      itemsMap: communeMap,
                       onChanged: (val) {
                         if (val != null) {
                           setSheetState(() {
                             tempCommune = val;
-                            final List<dynamic> nextVillages = currentCommunes[tempCommune] as List<dynamic>;
-                            tempVillage = nextVillages.first.toString();
+                            final vMap = state.getVillagesMap(tempCommune);
+                            tempVillage = vMap.isNotEmpty ? vMap.keys.first : '';
                           });
                         }
                       },
@@ -343,7 +461,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                     _buildDropdownField(
                       label: state.translate('village'),
                       value: tempVillage,
-                      items: villageList,
+                      itemsMap: villageMap,
                       onChanged: (val) {
                         if (val != null) {
                           setSheetState(() {
@@ -354,25 +472,56 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     CustomInput(
-                      label: state.translate('street_address_optional'),
+                      label: state.translate('street_no'),
                       hintText: 'e.g. Street 105',
                       controller: _streetController,
                     ),
                     const SizedBox(height: 24),
                     CustomButton(
-                      text: state.translate('save_address_details'),
-                      onPressed: () {
-                        state.updateProfileLocation(
-                          province: tempProvince,
-                          district: tempDistrict,
-                          commune: tempCommune,
-                          village: tempVillage,
-                          streetAddress: _streetController.text.trim(),
-                        );
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${state.translate('save_address_details')} successful')),
-                        );
+                      text: (state.currentRole == 'farmer' || state.currentRole == 'association')
+                          ? state.translate('request_address_update')
+                          : state.translate('save_address_details'),
+                      onPressed: () async {
+                        if (state.currentRole == 'farmer' || state.currentRole == 'association') {
+                          final String? err = await state.submitAddressRequest(
+                            province: tempProvince,
+                            district: tempDistrict,
+                            commune: tempCommune,
+                            village: tempVillage,
+                            streetAddress: _streetController.text.trim(),
+                          );
+                          if (context.mounted) {
+                            if (err != null) {
+                              _showPremiumStatusDialog(
+                                context: context,
+                                isSuccess: false,
+                                title: state.translate('err_failed_request'),
+                                message: err == 'ADDRESS_CHANGE_REQUEST_ALREADY_PENDING'
+                                    ? state.translate('err_already_pending')
+                                    : err,
+                              );
+                            } else {
+                              _showPremiumStatusDialog(
+                                context: context,
+                                isSuccess: true,
+                                title: state.translate('success'),
+                                message: state.translate('address_request_submitted'),
+                                onClose: () {
+                                  Navigator.pop(context);
+                                },
+                              );
+                            }
+                          }
+                        } else {
+                          state.updateProfileLocation(
+                            province: tempProvince,
+                            district: tempDistrict,
+                            commune: tempCommune,
+                            village: tempVillage,
+                            streetAddress: _streetController.text.trim(),
+                          );
+                          Navigator.pop(context);
+                        }
                       },
                     ),
                     const SizedBox(height: 16),
@@ -389,7 +538,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   Widget _buildDropdownField({
     required String label,
     required String value,
-    required List<String> items,
+    required Map<String, String> itemsMap,
     required ValueChanged<String?> onChanged,
   }) {
     return Column(
@@ -412,14 +561,14 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
             border: Border.all(color: AppColors.outlineVariant),
           ),
           child: DropdownButton<String>(
-            value: value,
+            value: value.isEmpty ? null : value,
             isExpanded: true,
             underline: const SizedBox(),
-            items: items.map((val) {
+            items: itemsMap.entries.map((entry) {
               return DropdownMenuItem(
-                value: val,
+                value: entry.key,
                 child: Text(
-                  val,
+                  entry.value,
                   style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurface),
                 ),
               );
@@ -483,11 +632,11 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 leading: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
                 title: Text(
-                  'Wholesale Transaction History',
+                  state.translate('wholesale_history'),
                   style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 subtitle: Text(
-                  'View invoice orders and contract agreements',
+                  state.translate('wholesale_history_desc'),
                   style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.outline),
@@ -506,11 +655,11 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   leading: const Icon(Icons.storefront_rounded, color: AppColors.primary),
                   title: Text(
-                    'View My Farm Profile',
+                    state.translate('view_farm_profile'),
                     style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15),
                   ),
                   subtitle: Text(
-                    'See how buyers view your farm and listed products',
+                    state.translate('view_farm_profile_desc'),
                     style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.outline),
@@ -607,6 +756,117 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
+        );
+      },
+    );
+  }
+
+  void _showPremiumStatusDialog({
+    required BuildContext context,
+    required bool isSuccess,
+    required String title,
+    required String message,
+    VoidCallback? onClose,
+  }) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 350),
+      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curve = CurvedAnimation(parent: anim1, curve: Curves.easeOutBack);
+        return ScaleTransition(
+          scale: curve,
+          child: FadeTransition(
+            opacity: anim1,
+            child: AlertDialog(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              contentPadding: EdgeInsets.zero,
+              content: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(28),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: (isSuccess ? Colors.teal : Colors.redAccent).withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: (isSuccess ? Colors.teal : Colors.redAccent).withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isSuccess ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
+                            size: 52,
+                            color: isSuccess ? Colors.teal : Colors.redAccent,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          message,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppColors.onSurfaceVariant,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              if (onClose != null) onClose();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isSuccess ? Colors.teal : Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              isSuccess ? 'OK' : 'Close',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         );
       },
     );

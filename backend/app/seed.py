@@ -5,6 +5,7 @@ from app.models.role import Role
 from app.models.user_role import UserRole
 from app.models.product import Product
 from app.models.category import Category
+from app.models.address_change_request import AddressChangeRequest
 from app.services import role_service, user_service
 from app.schemas.user import UserCreate
 
@@ -49,8 +50,8 @@ USERS_TO_SEED = [
         "role_id": 3,
         "province": "Battambang",
         "district": "Sangkae",
-        "commune": "Wat Ta Mim",
-        "village": "O Sralau",
+        "commune": "Voat Ta Mim",
+        "village": "Ou Sralau",
         "street_address": "Street 105",
         "password": "farmerpassword123"
     },
@@ -98,20 +99,25 @@ def seed_database():
             else:
                 logger.info(f"Role {role_name} already exists.")
 
-        # 1.5 Seed Default Category
-        category_id = "c8a24b17-3bf7-42f4-8a4a-9ef8540dc6cf"
-        db_category = db.query(Category).filter(Category.id == category_id).first()
-        if not db_category:
-            new_cat = Category(
-                id=category_id,
-                name="Grains & Crops",
-                description="Default category for harvested grains, rice, and agricultural crops"
-            )
-            db.add(new_cat)
-            db.commit()
-            logger.info(f"Created default category: {category_id}")
-        else:
-            logger.info("Default category already exists.")
+        # 1.5 Seed Default Categories
+        CATEGORIES_TO_SEED = {
+            "c8a24b17-3bf7-42f4-8a4a-9ef8540dc6cf": ("Grains", "Harvested grains, rice, and agricultural crops"),
+            "v8a24b17-3bf7-42f4-8a4a-9ef8540dc6cf": ("Vegetables", "Fresh vegetables, greens, and roots"),
+            "f8a24b17-3bf7-42f4-8a4a-9ef8540dc6cf": ("Fruits", "Fresh harvested local fruits"),
+        }
+        for cat_id, (cat_name, cat_desc) in CATEGORIES_TO_SEED.items():
+            db_category = db.query(Category).filter(Category.id == cat_id).first()
+            if not db_category:
+                new_cat = Category(
+                    id=cat_id,
+                    name=cat_name,
+                    description=cat_desc
+                )
+                db.add(new_cat)
+                db.commit()
+                logger.info(f"Created category: {cat_name}")
+            else:
+                logger.info(f"Category {cat_name} already exists.")
 
         # 2. Seed Users
         for user_data in USERS_TO_SEED:
@@ -128,13 +134,7 @@ def seed_database():
                 user_service.create_user(db, user_in=user_in)
                 logger.info(f"Created user: {email} with role_id: {user_data['role_id']}")
             else:
-                db_user.province = user_data["province"]
-                db_user.district = user_data["district"]
-                db_user.commune = user_data["commune"]
-                db_user.village = user_data["village"]
-                db_user.street_address = user_data["street_address"]
-                db.add(db_user)
-                db.commit()
+                user_service.update_user(db, db_obj=db_user, obj_in=user_data)
                 logger.info(f"Updated locations for existing user: {email}")
 
         logger.info("Database seeding completed successfully.")

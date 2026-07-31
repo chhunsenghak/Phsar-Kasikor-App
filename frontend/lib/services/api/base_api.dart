@@ -26,8 +26,10 @@ class BaseApi {
     } else {
       try {
         final err = jsonDecode(response.body);
-        throw Exception(err['detail'] ?? 'API Error with status code: ${response.statusCode}');
-      } catch (_) {
+        final String errMsg = err['message']?.toString() ?? err['detail']?.toString() ?? 'API Error with status code: ${response.statusCode}';
+        throw Exception(errMsg);
+      } catch (e) {
+        if (e is Exception) rethrow;
         throw Exception('API Server error: ${response.statusCode}');
       }
     }

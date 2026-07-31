@@ -6,7 +6,8 @@ from typing import Any, Dict
 router = APIRouter()
 
 # Resolve dynamic paths for static assets in backend/app/static
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
+APP_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+STATIC_DIR = os.path.join(APP_DIR, "static")
 GAZETTEER_PATH = os.path.join(STATIC_DIR, "cambodia_gazetteer.json")
 
 # Fallback basic locations dataset in case the file reading encounters any runtime issues
