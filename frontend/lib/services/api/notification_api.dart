@@ -37,4 +37,12 @@ class NotificationApi {
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }
+
+  static Future<Map<String, dynamic>> deleteNotification(String token, String notificationId) async {
+    final response = await http.delete(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/notifications/$notificationId'),
+      headers: BaseApi.getHeaders(token, json: false),
+    );
+    return BaseApi.handleResponse(response) as Map<String, dynamic>;
+  }
 }

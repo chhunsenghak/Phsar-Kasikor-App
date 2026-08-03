@@ -72,4 +72,22 @@ class UserApi {
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }
+
+  static Future<Map<String, dynamic>> updateProfileInfo(
+    String token, {
+    required String username,
+    required String phoneNumber,
+    required String email,
+  }) async {
+    final response = await http.put(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/users/me'),
+      headers: BaseApi.getHeaders(token, json: true),
+      body: jsonEncode({
+        'username': username,
+        'phoneNumber': phoneNumber,
+        'email': email,
+      }),
+    );
+    return BaseApi.handleResponse(response) as Map<String, dynamic>;
+  }
 }

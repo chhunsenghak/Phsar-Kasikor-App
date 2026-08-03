@@ -36,11 +36,6 @@ USERS_TO_SEED = [
         "username": "admin",
         "phoneNumber": "+85511112222",
         "role_id": 1,
-        "province": "",
-        "district": "",
-        "commune": "",
-        "village": "",
-        "street_address": "",
         "password": "adminpassword123"
     },
     {
@@ -48,11 +43,6 @@ USERS_TO_SEED = [
         "username": "sok_farmer",
         "phoneNumber": "+85512223333",
         "role_id": 3,
-        "province": "Battambang",
-        "district": "Sangkae",
-        "commune": "Voat Ta Mim",
-        "village": "Ou Sralau",
-        "street_address": "Street 105",
         "password": "farmerpassword123"
     },
     {
@@ -60,11 +50,6 @@ USERS_TO_SEED = [
         "username": "chavy_buyer",
         "phoneNumber": "+85588889999",
         "role_id": 6,
-        "province": "",
-        "district": "",
-        "commune": "",
-        "village": "",
-        "street_address": "",
         "password": "buyerpassword123"
     },
     {
@@ -72,11 +57,6 @@ USERS_TO_SEED = [
         "username": "cooperative_association",
         "phoneNumber": "+85599990000",
         "role_id": 2,
-        "province": "",
-        "district": "",
-        "commune": "",
-        "village": "",
-        "street_address": "",
         "password": "cooppassword123"
     }
 ]
@@ -135,7 +115,7 @@ def seed_database():
                 logger.info(f"Created user: {email} with role_id: {user_data['role_id']}")
             else:
                 user_service.update_user(db, db_obj=db_user, obj_in=user_data)
-                logger.info(f"Updated locations for existing user: {email}")
+                logger.info(f"Updated user: {email}")
 
         logger.info("Database seeding completed successfully.")
 

@@ -18,6 +18,7 @@ class Notification(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
+    deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
     user = relationship("User", backref="notifications")

@@ -20,15 +20,28 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
     total_amount = 0.0
     db_items = []
     seller_id = None
+    currency = None
+
+    if not order_in.items:
+        raise Exception("NO_ITEMS_IN_ORDER")
+
+    # Merge repeated lines for the same product first. Validating them
+    # separately would let each line pass the stock check on its own while the
+    # combined quantity oversells the farmer's inventory.
+    merged_quantities: dict[str, float] = {}
+    for item in order_in.items:
+        merged_quantities[item.product_id] = (
+            merged_quantities.get(item.product_id, 0.0) + item.quantity
+        )
 
     # 1. Process and validate line items
-    for item in order_in.items:
-        db_product = db.query(Product).filter(Product.id == item.product_id).first()
+    for product_id, quantity in merged_quantities.items():
+        db_product = db.query(Product).filter(Product.id == product_id).first()
         if not db_product:
             raise Exception("PRODUCT_NOT_FOUND")
-        if db_product.quantity_available < item.quantity:
+        if float(db_product.quantity_available) < quantity:
             raise Exception("INSUFFICIENT_STOCK")
-        
+
         # Determine seller_id dynamically from the first item
         if seller_id is None:
             seller_id = db_product.seller_id
@@ -36,18 +49,26 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
                 raise Exception("CANNOT_ORDER_OWN_PRODUCT")
         elif seller_id != db_product.seller_id:
             raise Exception("MULTIPLE_SELLERS_IN_ORDER")
-        
+
+        # A single order carries one total in one currency — a farmer can list
+        # some products in USD and others in KHR, so this cannot be assumed
+        # from the seller alone and must be checked per item.
+        if currency is None:
+            currency = db_product.currency
+        elif currency != db_product.currency:
+            raise Exception("MULTIPLE_CURRENCIES_IN_ORDER")
+
         # Calculate subtotal
-        subtotal = float(db_product.price_per_unit) * item.quantity
+        subtotal = float(db_product.price_per_unit) * quantity
         total_amount += subtotal
 
         # Decrease stock availability
-        db_product.quantity_available = float(db_product.quantity_available) - item.quantity
+        db_product.quantity_available = float(db_product.quantity_available) - quantity
 
         db_items.append(
             OrderItem(
-                product_id=item.product_id,
-                quantity=item.quantity,
+                product_id=product_id,
+                quantity=quantity,
                 subtotal=subtotal
             )
         )
@@ -60,8 +81,11 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
         buyer_id=buyer_id,
         seller_id=seller_id,
         total_amount=total_amount,
+        currency=currency,
         payment_status="PENDING",
-        order_status="PLACED"
+        order_status="PLACED",
+        payment_method=order_in.payment_method or "KHQR",
+        delivery_method=order_in.delivery_method or "DELIVERY"
     )
     db.add(db_order)
     db.flush() # Flushes order to generate ID

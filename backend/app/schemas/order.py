@@ -32,6 +32,8 @@ class OrderItemOut(OrderItemBase):
 
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
+    payment_method: Optional[str] = "KHQR"
+    delivery_method: Optional[str] = "DELIVERY"
 
 class OrderUpdate(BaseModel):
     payment_status: Optional[PaymentStatus] = None
@@ -42,8 +44,11 @@ class OrderOut(BaseModel):
     buyer_id: str
     seller_id: str
     total_amount: float
+    currency: str
     payment_status: PaymentStatus
     order_status: OrderStatus
+    payment_method: str
+    delivery_method: str
     created_at: datetime
     items: List[OrderItemOut]
 

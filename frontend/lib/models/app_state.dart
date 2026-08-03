@@ -4,6 +4,7 @@ import 'state/product_state.dart';
 import 'state/contract_state.dart';
 import 'state/notification_state.dart';
 import 'state/forum_state.dart';
+import 'state/cart_state.dart';
 
 // Export all states so screens importing app_state.dart get all models automatically
 export 'state/base_app_state.dart';
@@ -12,15 +13,18 @@ export 'state/product_state.dart';
 export 'state/contract_state.dart';
 export 'state/notification_state.dart';
 export 'state/forum_state.dart';
+export 'state/cart_state.dart';
 
 class AppState extends BaseAppState with
     LocationStateMixin,
     ProductStateMixin,
     ContractStateMixin,
     NotificationStateMixin,
-    ForumStateMixin {
+    ForumStateMixin,
+    CartStateMixin {
   
   AppState() {
+    restoreSavedSession();
     loadLocations();
     refreshCategories().then((_) => refreshProducts());
     refreshMarketPrices();

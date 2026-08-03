@@ -6,10 +6,13 @@ import '../../models/app_state.dart';
 
 // Import all screens
 import '../buyer/marketplace_home.dart';
+import '../buyer/cart_screen.dart';
 import '../buyer/market_price_tracker.dart';
 import '../buyer/community_portal.dart';
 import 'user_profile_settings.dart';
+import 'order_contract_history_screen.dart';
 import '../farmer/farmer_dashboard.dart';
+import '../cooperative/cooperative_dashboard.dart';
 import '../admin/admin_dashboard_overview.dart';
 import '../admin/refined_farmer_verification_queue.dart';
 import '../admin/content_review_moderation.dart';
@@ -90,7 +93,50 @@ class _AppShellState extends State<AppShell> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+
+          const SizedBox(width: 4),
+          // Cart — buyers only; farmers sell rather than buy.
+          if (role.toLowerCase() == 'buyer')
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined,
+                      color: AppColors.onSurface),
+                  tooltip: state.translate('shopping_cart'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CartScreen(),
+                      ),
+                    );
+                  },
+                ),
+                if (state.cartItemCount > 0)
+                  Positioned(
+                    top: 8,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${state.cartItemCount}',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           // Notifications Icon Button
           Stack(
             alignment: Alignment.center,
@@ -173,7 +219,34 @@ class _AppShellState extends State<AppShell> {
   }
 
   List<Map<String, dynamic>> _getNavItemsForRole(AppState state, String role) {
-    if (role == 'farmer' || role == 'association') {
+    if (role == 'association') {
+      return [
+        {
+          'label': state.translate('coop_dashboard'),
+          'icon': Icons.group_work_outlined,
+          'activeIcon': Icons.group_work_rounded,
+          'screen': const CooperativeDashboardScreen(),
+        },
+        {
+          'label': state.translate('prices'),
+          'icon': Icons.trending_up_outlined,
+          'activeIcon': Icons.trending_up_rounded,
+          'screen': const MarketPriceTrackerScreen(),
+        },
+        {
+          'label': state.translate('community'),
+          'icon': Icons.forum_outlined,
+          'activeIcon': Icons.forum_rounded,
+          'screen': const CommunityPortalScreen(),
+        },
+        {
+          'label': state.translate('profile'),
+          'icon': Icons.person_outline_rounded,
+          'activeIcon': Icons.person_rounded,
+          'screen': const UserProfileSettingsScreen(),
+        },
+      ];
+    } else if (role == 'farmer') {
       return [
         {
           'label': state.translate('dashboard'),
@@ -237,16 +310,10 @@ class _AppShellState extends State<AppShell> {
           'screen': const MarketplaceHomeScreen(),
         },
         {
-          'label': state.translate('prices'),
-          'icon': Icons.trending_up_outlined,
-          'activeIcon': Icons.trending_up_rounded,
-          'screen': const MarketPriceTrackerScreen(),
-        },
-        {
-          'label': state.translate('community'),
-          'icon': Icons.forum_outlined,
-          'activeIcon': Icons.forum_rounded,
-          'screen': const CommunityPortalScreen(),
+          'label': state.translate('my_orders'),
+          'icon': Icons.receipt_long_outlined,
+          'activeIcon': Icons.receipt_long_rounded,
+          'screen': const OrderContractHistoryScreen(initialTab: 1),
         },
         {
           'label': state.translate('profile'),

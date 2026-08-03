@@ -97,4 +97,15 @@ mixin NotificationStateMixin on BaseAppState {
     }
     notifyListeners();
   }
+
+  void deleteNotification(String id) {
+    _notifications.removeWhere((n) => n['id']?.toString() == id);
+    notifyListeners();
+    if (token != null) {
+      NotificationApi.deleteNotification(token!, id).catchError((e) {
+        debugPrint('Failed to soft delete notification on backend: $e');
+        return <String, dynamic>{};
+      });
+    }
+  }
 }

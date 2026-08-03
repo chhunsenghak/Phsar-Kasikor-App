@@ -12,3 +12,9 @@ from app.models.notification import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.market_price import MarketPrice
+from app.models.farmer_certificate import FarmerCertificate
+from app.models.saved_crop import SavedCrop
+from app.models.forum import ForumPost, ForumComment
+from app.models.content_report import ContentReport
+from app.models.cooperative import Cooperative, CooperativeMember
+

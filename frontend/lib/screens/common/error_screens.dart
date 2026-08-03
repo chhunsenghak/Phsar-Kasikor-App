@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
+import '../../models/app_state.dart';
 import '../../widgets/custom_button.dart';
 
 class NoResultsScreen extends StatelessWidget {
@@ -10,6 +12,7 @@ class NoResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -31,7 +34,7 @@ class NoResultsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'No Results Found',
+              state.translate('no_results_found'),
               style: GoogleFonts.inter(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -40,7 +43,7 @@ class NoResultsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'We couldn\'t find any listings matching your search parameters. Try adjusting filters or check spellings.',
+              state.translate('no_results_desc'),
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 15,
@@ -53,7 +56,7 @@ class NoResultsScreen extends StatelessWidget {
               SizedBox(
                 width: 180,
                 child: CustomButton(
-                  text: 'Clear Filters',
+                  text: state.translate('clear_filters'),
                   onPressed: onReset,
                   height: 48,
                 ),
@@ -72,6 +75,7 @@ class NetworkErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
@@ -95,7 +99,7 @@ class NetworkErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                'Connection Failure',
+                state.translate('connection_failure'),
                 style: GoogleFonts.inter(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -104,7 +108,7 @@ class NetworkErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'It seems you are offline or the marketplace server is currently unreachable. Please check your internet connection and try again.',
+                state.translate('connection_failure_desc'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 15,
@@ -116,7 +120,7 @@ class NetworkErrorScreen extends StatelessWidget {
               SizedBox(
                 width: 200,
                 child: CustomButton(
-                  text: 'Try Again',
+                  text: state.translate('try_again'),
                   icon: Icons.refresh_rounded,
                   onPressed: onRetry,
                 ),

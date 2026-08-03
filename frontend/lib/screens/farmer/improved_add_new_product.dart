@@ -156,7 +156,13 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
-    final List<String> categories = ['Grains', 'Vegetables', 'Fruits'];
+    final List<String> categories = state.backendCategories
+        .map((c) => c['name']?.toString() ?? '')
+        .where((n) => n.isNotEmpty)
+        .toList();
+    if (categories.isNotEmpty && !categories.contains(_selectedCategory)) {
+      _selectedCategory = categories.first;
+    }
     final List<String> units = ['kg', 'bag', 'ton', 'hand'];
 
     return Scaffold(

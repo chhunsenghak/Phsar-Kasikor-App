@@ -248,31 +248,37 @@ class _LoginScreenState extends State<LoginScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Checkbox(
-                        value: _rememberMe,
-                        activeColor: AppColors.primary,
-                        onChanged: (val) {
-                          setState(() {
-                            _rememberMe = val ?? true;
-                          });
-                        },
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: _rememberMe,
+                          activeColor: AppColors.primary,
+                          onChanged: (val) {
+                            setState(() {
+                              _rememberMe = val ?? true;
+                            });
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      state.translate('keep_signed_in'),
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: AppColors.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          state.translate('keep_signed_in'),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: AppColors.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 TextButton(
                   onPressed: () {

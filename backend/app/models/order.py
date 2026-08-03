@@ -12,8 +12,11 @@ class Order(Base):
     buyer_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     seller_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     total_amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String, default="USD", nullable=False) # USD or KHR — the products' currency, not a user choice
     payment_status = Column(String, default="PENDING", nullable=False) # PENDING, PAID, FAILED, REFUNDED
     order_status = Column(String, default="PLACED", nullable=False) # PLACED, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
+    payment_method = Column(String, default="KHQR", nullable=False) # KHQR, COD
+    delivery_method = Column(String, default="DELIVERY", nullable=False) # DELIVERY, PICKUP
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

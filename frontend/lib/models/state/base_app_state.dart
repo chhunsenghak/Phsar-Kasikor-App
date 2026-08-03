@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api/base_api.dart';
 import '../../services/api/user_api.dart';
+import '../../services/web_download.dart';
 import '../../constants/translations.dart';
 
 class MarketProduct {
@@ -142,7 +145,7 @@ class AddressChangeRequest {
 }
 
 class ForumPost {
-  final String id;
+  String id;
   final String author;
   final String role; // 'Farmer', 'Buyer', 'Expert'
   final String title;
@@ -217,6 +220,21 @@ class BaseAppState extends ChangeNotifier {
   Map<String, dynamic>? _userProfile;
   Map<String, dynamic>? get userProfile => _userProfile;
 
+  String? _profileImagePath;
+  String? get profileImagePath => _profileImagePath;
+
+  Uint8List? _profileImageBytes;
+  Uint8List? get profileImageBytes => _profileImageBytes;
+
+  void updateProfileImage({String? path, Uint8List? bytes}) {
+    _profileImagePath = path;
+    _profileImageBytes = bytes;
+    if (_userProfile != null) {
+      _userProfile!['profile_image_path'] = path;
+    }
+    notifyListeners();
+  }
+
   int _currentNavIndex = 0;
   int get currentNavIndex => _currentNavIndex;
 
@@ -237,6 +255,93 @@ class BaseAppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> restoreSavedSession() async {
+    try {
+      String? savedToken;
+      String? savedProfileStr;
+      String? savedRole;
+
+      if (kIsWeb) {
+        savedToken = getWebStorage('auth_token');
+        savedProfileStr = getWebStorage('user_profile_json');
+        savedRole = getWebStorage('saved_role');
+      }
+
+      if (savedProfileStr == null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          savedToken ??= prefs.getString('auth_token');
+          savedProfileStr ??= prefs.getString('user_profile_json');
+          savedRole ??= prefs.getString('saved_role');
+        } catch (_) {}
+      }
+
+      if (savedProfileStr != null) {
+        final profile = jsonDecode(savedProfileStr) as Map<String, dynamic>;
+        _token = savedToken;
+        _userProfile = profile;
+        _isLoggedIn = true;
+
+        if (savedRole != null && savedRole.isNotEmpty) {
+          _currentRole = savedRole;
+        } else {
+          final int roleId = profile['role_id'] ?? 6;
+          if (roleId == 1) {
+            _currentRole = 'admin';
+          } else if (roleId == 3) {
+            _currentRole = 'farmer';
+          } else if (roleId == 2) {
+            _currentRole = 'association';
+          } else {
+            _currentRole = 'buyer';
+          }
+        }
+        _userName = profile['username'] ?? profile['email'] ?? 'User';
+
+        loadBackendData();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error restoring saved session: $e');
+    }
+  }
+
+  Future<void> _saveSessionToStorage() async {
+    try {
+      if (kIsWeb) {
+        if (_token != null) saveWebStorage('auth_token', _token!);
+        if (_userProfile != null) saveWebStorage('user_profile_json', jsonEncode(_userProfile));
+        saveWebStorage('saved_role', _currentRole);
+      }
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (_token != null) await prefs.setString('auth_token', _token!);
+        if (_userProfile != null) await prefs.setString('user_profile_json', jsonEncode(_userProfile));
+        await prefs.setString('saved_role', _currentRole);
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('Error saving session to storage: $e');
+    }
+  }
+
+  Future<void> _clearSessionFromStorage() async {
+    try {
+      if (kIsWeb) {
+        removeWebStorage('auth_token');
+        removeWebStorage('user_profile_json');
+        removeWebStorage('saved_role');
+      }
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('auth_token');
+        await prefs.remove('user_profile_json');
+        await prefs.remove('saved_role');
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('Error clearing session from storage: $e');
+    }
+  }
+
   void login(String identifier, String role) {
     _isLoggedIn = true;
     setRole(role);
@@ -252,6 +357,7 @@ class BaseAppState extends ChangeNotifier {
       'village': 'O Sralau',
       'street_address': 'Street 105',
     };
+    _saveSessionToStorage();
   }
 
   Future<void> loadBackendData() async {
@@ -283,6 +389,7 @@ class BaseAppState extends ChangeNotifier {
     _currentRole = roleStr;
     _userName = profile['username'] ?? profile['email'] ?? 'User';
 
+    _saveSessionToStorage();
     loadBackendData();
     notifyListeners();
   }
@@ -293,6 +400,7 @@ class BaseAppState extends ChangeNotifier {
     _userName = 'Guest User';
     _token = null;
     _userProfile = null;
+    _clearSessionFromStorage();
     notifyListeners();
   }
 
@@ -321,6 +429,31 @@ class BaseAppState extends ChangeNotifier {
         streetAddress: streetAddress,
       ).catchError((e) {
         debugPrint('Failed to save profile location on backend: $e');
+        return <String, dynamic>{};
+      });
+    }
+  }
+
+  Future<void> updateProfileInfo({
+    required String username,
+    required String phoneNumber,
+    required String email,
+  }) async {
+    _userProfile ??= {};
+    _userProfile!['username'] = username;
+    _userProfile!['phoneNumber'] = phoneNumber;
+    _userProfile!['email'] = email;
+    _userName = username;
+    notifyListeners();
+
+    if (_token != null) {
+      await UserApi.updateProfileInfo(
+        _token!,
+        username: username,
+        phoneNumber: phoneNumber,
+        email: email,
+      ).catchError((e) {
+        debugPrint('Failed to save profile info on backend: $e');
         return <String, dynamic>{};
       });
     }

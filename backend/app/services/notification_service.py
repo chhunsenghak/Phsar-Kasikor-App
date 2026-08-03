@@ -3,8 +3,12 @@ from sqlalchemy.orm import Session
 from app.models.notification import Notification
 from app.schemas.notification import NotificationCreate
 
+from datetime import datetime, timezone
+
 def get_notifications_for_user(db: Session, user_id: str, skip: int = 0, limit: int = 100) -> List[Notification]:
-    return db.query(Notification).filter(Notification.user_id == user_id).order_by(Notification.sent_at.desc()).offset(skip).limit(limit).all()
+    return db.query(Notification).filter(
+        (Notification.user_id == user_id) & (Notification.deleted_at == None)
+    ).order_by(Notification.sent_at.desc()).offset(skip).limit(limit).all()
 
 def create_notification(db: Session, notification_in: NotificationCreate) -> Notification:
     db_notification = Notification(
@@ -24,6 +28,16 @@ def mark_notification_as_read(db: Session, notification_id: str, user_id: str) -
     ).first()
     if db_notification:
         db_notification.is_read = True
+        db.commit()
+        db.refresh(db_notification)
+    return db_notification
+
+def delete_notification_soft(db: Session, notification_id: str, user_id: str) -> Optional[Notification]:
+    db_notification = db.query(Notification).filter(
+        (Notification.id == notification_id) & (Notification.user_id == user_id)
+    ).first()
+    if db_notification:
+        db_notification.deleted_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_notification)
     return db_notification

@@ -1,21 +1,29 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
+import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../services/api/order_api.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
+  final String orderId;
   final String productName;
   final double price;
   final double quantity;
   final double total;
+  final String currency;
 
   const OrderTrackingScreen({
     super.key,
+    required this.orderId,
     required this.productName,
     required this.price,
     required this.quantity,
     required this.total,
+    this.currency = 'USD',
   });
 
   @override
@@ -23,47 +31,129 @@ class OrderTrackingScreen extends StatefulWidget {
 }
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
-  int _currentStep = 1; // 0: Payment Approved, 1: Packaging, 2: In-Transit, 3: Delivered
+  String _orderStatus = 'PLACED';
+  String _paymentMethod = 'KHQR';
+  String _deliveryMethod = 'DELIVERY';
+  bool _isLoading = false;
+  Timer? _pollingTimer;
 
   final List<Map<String, String>> _steps = [
     {
-      'title': 'Payment Approved',
-      'desc': 'Payment settled via Bakong KHQR. Receipt ID: TXN-898231',
-      'time': 'July 22, 13:30',
+      'title': 'step_payment_approved',
+      'desc': 'step_payment_approved_desc',
+      'time': 'Just now',
     },
     {
-      'title': 'Packaging crops',
-      'desc': 'Farmer Chan Sopheap is packaging the crops into fresh containers.',
-      'time': 'July 22, 14:00',
-    },
-    {
-      'title': 'In Transit',
-      'desc': 'Shipped via Virak Buntham Express. Tracking: VET-902-88',
+      'title': 'step_packaging',
+      'desc': 'step_packaging_desc',
       'time': 'Pending',
     },
     {
-      'title': 'Delivered',
-      'desc': 'Courier will hand over to your address in Phnom Penh.',
+      'title': 'step_in_transit',
+      'desc': 'step_in_transit_desc',
+      'time': 'Pending',
+    },
+    {
+      'title': 'step_delivered',
+      'desc': 'step_delivered_desc',
       'time': 'Pending',
     },
   ];
 
-  void _simulateProgress() {
-    if (_currentStep < 3) {
+  int get _currentStep {
+    switch (_orderStatus) {
+      case 'PLACED':
+        return 0;
+      case 'CONFIRMED':
+        return 1;
+      case 'SHIPPED':
+        return 2;
+      case 'DELIVERED':
+        return 3;
+      case 'CANCELLED':
+        return -1;
+      default:
+        return 0;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOrderStatus();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) => _fetchOrderStatus(silent: true));
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchOrderStatus({bool silent = false}) async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    if (!silent) {
       setState(() {
-        _currentStep++;
-        if (_currentStep == 2) {
-          _steps[2]['time'] = 'July 22, 14:15';
-        } else if (_currentStep == 3) {
-          _steps[3]['time'] = 'July 22, 14:45';
-          _steps[3]['desc'] = 'Package successfully signed and delivered.';
-        }
+        _isLoading = true;
       });
+    }
+
+    try {
+      final res = await OrderApi.fetchOrderDetails(state.token!, widget.orderId);
+      if (mounted) {
+        setState(() {
+          _orderStatus = res['order_status'] ?? 'PLACED';
+          _paymentMethod = res['payment_method'] ?? 'KHQR';
+          _deliveryMethod = res['delivery_method'] ?? 'DELIVERY';
+
+          if (_paymentMethod == 'COD') {
+            _steps[0]['title'] = 'step_order_confirmed';
+            _steps[0]['desc'] = 'step_order_confirmed_desc';
+          } else {
+            _steps[0]['title'] = 'step_payment_approved';
+            _steps[0]['desc'] = 'step_payment_approved_desc';
+          }
+
+          if (_deliveryMethod == 'PICKUP') {
+            _steps[2]['title'] = 'step_ready_pickup';
+            _steps[2]['desc'] = 'step_ready_pickup_desc';
+            _steps[3]['title'] = 'step_collected';
+            _steps[3]['desc'] = 'step_collected_desc';
+          } else {
+            _steps[2]['title'] = 'step_in_transit';
+            _steps[2]['desc'] = 'step_in_transit_desc';
+            _steps[3]['title'] = 'step_delivered';
+            _steps[3]['desc'] = 'step_delivered_desc';
+          }
+
+          if (_currentStep >= 1) {
+            _steps[1]['time'] = 'Updated';
+          }
+          if (_currentStep >= 2) {
+            _steps[2]['time'] = 'In Transit';
+          }
+          if (_currentStep >= 3) {
+            _steps[3]['time'] = 'Arrived';
+            _steps[3]['desc'] = 'step_delivered_success_desc';
+          }
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted && !silent) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context);
+    final ref = widget.orderId.length > 8 ? widget.orderId.substring(0, 8).toUpperCase() : widget.orderId;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -74,7 +164,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Order Tracking',
+          state.translate('order_tracking'),
           style: GoogleFonts.inter(
             color: AppColors.onSurface,
             fontWeight: FontWeight.bold,
@@ -87,7 +177,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order Receipt Summary Box
             CustomCard(
               padding: const EdgeInsets.all(16),
               backgroundColor: AppColors.surface,
@@ -108,19 +197,22 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Order Ref: PK-2026-9028',
+                          '${state.translate('order_id')}: PK-$ref',
                           style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${widget.quantity.toInt()} units of ${widget.productName}',
+                          state.translate('units_of', arguments: {
+                            'count': widget.quantity.toInt().toString(),
+                            'name': widget.productName,
+                          }),
                           style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                         ),
                       ],
                     ),
                   ),
                   Text(
-                    '\$${widget.total.toStringAsFixed(2)}',
+                    formatCurrencyAmount(widget.total, widget.currency),
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -130,74 +222,135 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            CustomCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              backgroundColor: AppColors.surface,
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        state.translate('payment_method'),
+                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
+                      ),
+                      Text(
+                        _paymentMethod == 'COD' ? state.translate('cod_cash') : state.translate('khqr_pay'),
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        state.translate('delivery_method'),
+                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
+                      ),
+                      Text(
+                        _deliveryMethod == 'PICKUP' ? state.translate('self_pickup') : state.translate('express_delivery'),
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
 
-            // Stepper Header
-            Text(
-              'Delivery Status',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onSurface,
+            if (_orderStatus == 'CANCELLED') ...[
+              CustomCard(
+                backgroundColor: AppColors.error.withValues(alpha: 0.1),
+                borderSide: const BorderSide(color: AppColors.error),
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cancel_rounded, color: AppColors.error),
+                    const SizedBox(width: 12),
+                    Text(
+                      state.translate('order_cancelled'),
+                      style: GoogleFonts.inter(
+                        color: AppColors.error,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 24),
+            ],
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  state.translate('delivery_status'),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                if (_isLoading)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                  )
+                else
+                  TextButton.icon(
+                    onPressed: () => _fetchOrderStatus(silent: false),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: Text(state.translate('refresh')),
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
 
-            // Custom Vertical Stepper
             Column(
               children: List.generate(_steps.length, (idx) {
-                final isCompleted = idx < _currentStep;
-                final isActive = idx == _currentStep;
-                final isLast = idx == _steps.length - 1;
+                final isCompleted = _orderStatus != 'CANCELLED' && idx < _currentStep;
+                final isActive = _orderStatus != 'CANCELLED' && idx == _currentStep;
 
-                Color dotColor = AppColors.outlineVariant;
-                Color textColor = AppColors.outline;
-                Color subTextColor = AppColors.onSurfaceVariant.withValues(alpha: 0.6);
-
-                if (isCompleted) {
-                  dotColor = AppColors.primary;
-                  textColor = AppColors.onSurface;
-                  subTextColor = AppColors.onSurfaceVariant;
-                } else if (isActive) {
-                  dotColor = AppColors.secondary;
-                  textColor = AppColors.primary;
-                  subTextColor = AppColors.onSurface;
-                }
+                final circleColor = isCompleted
+                    ? AppColors.primary
+                    : isActive
+                        ? AppColors.secondary
+                        : AppColors.outlineVariant;
+                final textColor = isCompleted || isActive ? AppColors.onSurface : AppColors.onSurfaceVariant;
+                final subTextColor = isCompleted || isActive ? AppColors.onSurfaceVariant : AppColors.outline;
 
                 return IntrinsicHeight(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Step Indicator Left Line + Dot
                       Column(
                         children: [
                           Container(
-                            width: 20,
-                            height: 20,
+                            width: 24,
+                            height: 24,
                             decoration: BoxDecoration(
-                              color: isCompleted ? dotColor : Colors.transparent,
+                              color: circleColor,
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: dotColor,
-                                width: 2,
-                              ),
                             ),
-                            child: isCompleted
-                                ? const Icon(Icons.check, size: 12, color: Colors.white)
-                                : null,
+                            child: Icon(
+                              isCompleted ? Icons.check_rounded : Icons.lens_rounded,
+                              size: isCompleted ? 14 : 10,
+                              color: isCompleted || isActive ? Colors.white : AppColors.outline,
+                            ),
                           ),
-                          if (!isLast)
+                          if (idx < _steps.length - 1)
                             Expanded(
                               child: Container(
                                 width: 2,
                                 color: isCompleted ? AppColors.primary : AppColors.outlineVariant,
-                                margin: const EdgeInsets.symmetric(vertical: 4),
                               ),
                             ),
                         ],
                       ),
                       const SizedBox(width: 16),
-                      // Text Info Block
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 24.0),
@@ -208,7 +361,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    _steps[idx]['title']!,
+                                    state.translate(_steps[idx]['title']!),
                                     style: GoogleFonts.inter(
                                       fontWeight: isActive || isCompleted ? FontWeight.bold : FontWeight.w500,
                                       fontSize: 15,
@@ -226,7 +379,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _steps[idx]['desc']!,
+                                state.translate(_steps[idx]['desc']!),
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   color: subTextColor,
@@ -243,43 +396,34 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Interactivity Sandbox Controller (to show off transitions)
-            if (_currentStep < 3) ...[
-              CustomCard(
-                backgroundColor: AppColors.secondaryContainer.withValues(alpha: 0.3),
-                borderSide: const BorderSide(color: AppColors.primary, width: 0.8),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PROTOTYPE INTERACTIVE SIMULATOR',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.onSecondaryContainer,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Advance the delivery status to the next step for testing purposes.',
-                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface),
-                    ),
-                    const SizedBox(height: 12),
-                    CustomButton(
-                      text: 'Simulate Next Step',
-                      icon: Icons.local_shipping_outlined,
-                      onPressed: _simulateProgress,
-                      height: 44,
-                    )
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
+            if (state.currentRole == 'farmer') ...[
+              if (_isUpdating)
+                const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              else ...[
+                if (_orderStatus == 'PLACED')
+                  CustomButton(
+                    text: 'Mark Packaging',
+                    backgroundColor: AppColors.primary,
+                    onPressed: () => _updateStatus(state, 'CONFIRMED'),
+                  )
+                else if (_orderStatus == 'CONFIRMED')
+                  CustomButton(
+                    text: _deliveryMethod == 'PICKUP' ? 'Mark Ready for Pickup' : 'Ship Order',
+                    backgroundColor: AppColors.primary,
+                    onPressed: () => _updateStatus(state, 'SHIPPED'),
+                  )
+                else if (_orderStatus == 'SHIPPED')
+                  CustomButton(
+                    text: _deliveryMethod == 'PICKUP' ? 'Mark Collected' : 'Mark Delivered',
+                    backgroundColor: AppColors.primary,
+                    onPressed: () => _updateStatus(state, 'DELIVERED'),
+                  ),
+              ],
+              const SizedBox(height: 12),
             ],
 
             CustomButton.secondary(
-              text: 'Back to Marketplace',
+              text: state.translate('back_home'),
               onPressed: () {
                 Navigator.pop(context);
               },
@@ -289,5 +433,43 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         ),
       ),
     );
+  }
+
+  bool _isUpdating = false;
+
+  Future<void> _updateStatus(AppState state, String nextStatus) async {
+    if (state.token == null) return;
+    setState(() {
+      _isUpdating = true;
+    });
+    try {
+      await OrderApi.updateOrder(
+        state.token!,
+        widget.orderId,
+        orderStatus: nextStatus,
+      );
+      state.addNotification(
+        'Order Status Updated',
+        'Order PK-${widget.orderId.substring(0, 8).toUpperCase()} was set to $nextStatus.',
+      );
+      await _fetchOrderStatus(silent: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Order updated successfully to $nextStatus!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update status: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
   }
 }

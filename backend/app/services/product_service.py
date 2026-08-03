@@ -11,14 +11,28 @@ def get_products(
     skip: int = 0,
     limit: int = 100,
     category_id: Optional[str] = None,
-    seller_id: Optional[str] = None
+    seller_id: Optional[str] = None,
+    search: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    province: Optional[str] = None
 ) -> List[Product]:
+    from app.models.user import User
     query = db.query(Product).filter(Product.status != "deleted")
     if category_id:
         query = query.filter(Product.category_id == category_id)
     if seller_id:
         query = query.filter(Product.seller_id == seller_id)
+    if search:
+        query = query.filter(Product.product_name.ilike(f"%{search}%"))
+    if min_price is not None:
+        query = query.filter(Product.price_per_unit >= min_price)
+    if max_price is not None:
+        query = query.filter(Product.price_per_unit <= max_price)
+    if province:
+        query = query.join(User, Product.seller_id == User.id).filter(User.province.ilike(f"%{province}%"))
     return query.offset(skip).limit(limit).all()
+
 
 def create_product(db: Session, product_in: ProductCreate, seller_id: str) -> Product:
     db_product = Product(

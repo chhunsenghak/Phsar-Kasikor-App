@@ -80,9 +80,6 @@ class NotificationCenterScreen extends StatelessWidget {
           TextButton(
             onPressed: () {
               state.markAllNotificationsRead();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.translate('marked_read_snack'))),
-              );
             },
             child: Text(
               state.translate('mark_all_read'),
@@ -138,100 +135,132 @@ class NotificationCenterScreen extends StatelessWidget {
                 final iconData = _getIconData(title, rawTitle);
                 final iconColor = _getIconColor(title, rawTitle);
 
-                return CustomCard(
-                  padding: const EdgeInsets.all(16),
-                  backgroundColor: isRead
-                      ? AppColors.surface
-                      : iconColor.withValues(alpha: 0.05),
-                  borderSide: BorderSide(
-                    color: isRead
-                        ? AppColors.outlineVariant.withValues(alpha: 0.3)
-                        : iconColor.withValues(alpha: 0.4),
-                    width: 1.0,
+                final String notifId = notif['id']?.toString() ?? index.toString();
+
+                return Dismissible(
+                  key: Key(notifId),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (direction) {
+                    state.deleteNotification(notifId);
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 24),
+                        const SizedBox(width: 6),
+                        Text(
+                          state.translate('delete'),
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Notification status dot/icon
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isRead
-                              ? AppColors.surfaceContainerLow.withValues(alpha: 0.6)
-                              : iconColor.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
+                  child: CustomCard(
+                    padding: const EdgeInsets.all(16),
+                    backgroundColor: isRead
+                        ? AppColors.surface
+                        : iconColor.withValues(alpha: 0.05),
+                    borderSide: BorderSide(
+                      color: isRead
+                          ? AppColors.outlineVariant.withValues(alpha: 0.3)
+                          : iconColor.withValues(alpha: 0.4),
+                      width: 1.0,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Notification status dot/icon
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isRead
+                                ? AppColors.surfaceContainerLow.withValues(alpha: 0.6)
+                                : iconColor.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            iconData,
+                            size: 20,
+                            color: isRead ? iconColor.withValues(alpha: 0.5) : iconColor,
+                          ),
                         ),
-                        child: Icon(
-                          iconData,
-                          size: 20,
-                          color: isRead ? iconColor.withValues(alpha: 0.5) : iconColor,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Info Content
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          title,
-                                          style: GoogleFonts.inter(
-                                            fontWeight: isRead ? FontWeight.w600 : FontWeight.bold,
-                                            fontSize: 15,
-                                            color: isRead ? AppColors.onSurface.withValues(alpha: 0.7) : AppColors.onSurface,
+                        const SizedBox(width: 16),
+                        // Info Content
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            title,
+                                            style: GoogleFonts.inter(
+                                              fontWeight: isRead ? FontWeight.w600 : FontWeight.bold,
+                                              fontSize: 15,
+                                              color: isRead ? AppColors.onSurface.withValues(alpha: 0.7) : AppColors.onSurface,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      if (!isRead)
-                                        Container(
-                                          margin: const EdgeInsets.only(left: 8),
-                                          width: 8,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: iconColor,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: iconColor.withValues(alpha: 0.5),
-                                                blurRadius: 4,
-                                                spreadRadius: 1,
-                                              )
-                                            ],
+                                        if (!isRead)
+                                          Container(
+                                            margin: const EdgeInsets.only(left: 8),
+                                            width: 8,
+                                            height: 8,
+                                            decoration: BoxDecoration(
+                                              color: iconColor,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: iconColor.withValues(alpha: 0.5),
+                                                  blurRadius: 4,
+                                                  spreadRadius: 1,
+                                                )
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  notif['time'] as String,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: AppColors.outline,
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    notif['time'] as String,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: AppColors.outline,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              body,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: isRead ? AppColors.onSurfaceVariant.withValues(alpha: 0.7) : AppColors.onSurfaceVariant,
-                                height: 1.4,
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Text(
+                                body,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: isRead ? AppColors.onSurfaceVariant.withValues(alpha: 0.7) : AppColors.onSurfaceVariant,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },

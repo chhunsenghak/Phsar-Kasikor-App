@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
+import '../../models/app_state.dart';
 import '../../widgets/custom_button.dart';
 import 'login_screen.dart';
+import 'app_shell.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,6 +24,22 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
+
+    _checkAutoLogin();
+  }
+
+  Future<void> _checkAutoLogin() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    await state.restoreSavedSession();
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    if (state.isLoggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AppShell()),
+      );
+    }
   }
 
   @override

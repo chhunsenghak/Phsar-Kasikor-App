@@ -5,7 +5,7 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
-import 'khqr_checkout.dart';
+import 'checkout_screen.dart';
 
 class BuyerNegotiationScreen extends StatefulWidget {
   final MarketProduct product;
@@ -225,7 +225,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
                       controller: _priceController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
-                        labelText: 'Offered Price (\$)',
+                        labelText: product.currency == 'KHR' ? 'Offered Price (៛)' : 'Offered Price (\$)',
                         labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
                         suffixText: '/${product.unit}',
                         border: const OutlineInputBorder(),
@@ -325,7 +325,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
                   onPressed: () {
                     state.acceptBid(activeBid.id);
                   },
-                  child: const Text('Accept Bid', style: TextStyle(color: Colors.white)),
+                  child: Text(state.translate('accept'), style: const TextStyle(color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -337,7 +337,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
                     state.counterOffer(activeBid.id, counterPrice);
                     _priceController.text = counterPrice.toStringAsFixed(2);
                   },
-                  child: const Text('Counter Offer', style: TextStyle(color: Colors.white)),
+                  child: Text(state.translate('counter_offer'), style: const TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -353,15 +353,17 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
       icon: Icons.shopping_cart_checkout_rounded,
       backgroundColor: AppColors.primary,
       onPressed: () {
+        // NOTE: the orders API prices every line from the product's listing
+        // price — it has no field for a negotiated rate — so checkout shows and
+        // charges the listing price. Honouring activeBid.offeredPrice needs an
+        // agreed-price field on the order item first.
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => KHQRCheckoutScreen(
-              productName: product.name,
-              unit: product.unit,
-              price: activeBid.offeredPrice,
-              quantity: activeBid.quantity,
-              currency: product.currency,
+            builder: (context) => CheckoutScreen(
+              items: [
+                CartItem(product: product, quantity: activeBid.quantity),
+              ],
             ),
           ),
         );

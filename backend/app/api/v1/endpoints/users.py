@@ -72,6 +72,9 @@ def update_user_me(
     """
     Update current user profile details (such as address).
     """
-    allowed_keys = {"province", "district", "commune", "village", "street_address", "latitude", "longitude"}
+    allowed_keys = {
+        "province", "district", "commune", "village", "street_address",
+        "latitude", "longitude", "username", "phoneNumber", "email"
+    }
     update_data = {k: v for k, v in user_in.items() if k in allowed_keys}
     return user_service.update_user(db, db_obj=current_user, obj_in=update_data)

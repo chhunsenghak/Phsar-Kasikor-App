@@ -76,6 +76,13 @@ try:
 except Exception as e:
     logger.info(f"Currency column check/creation skipped: {e}")
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE notifications ADD COLUMN deleted_at TIMESTAMP"))
+        logger.info("Added deleted_at column to notifications table successfully.")
+except Exception as e:
+    logger.info(f"deleted_at column check/creation skipped: {e}")
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"

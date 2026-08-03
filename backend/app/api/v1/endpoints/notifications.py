@@ -47,3 +47,19 @@ def mark_notification_as_read(
     if not db_notification:
         raise HTTPException(status_code=404, detail="Notification not found")
     return db_notification
+
+@router.delete("/{notification_id}")
+def delete_notification(
+    notification_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Soft delete a notification by setting deleted_at timestamp.
+    """
+    db_notification = notification_service.delete_notification_soft(
+        db, notification_id=notification_id, user_id=current_user.id
+    )
+    if not db_notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"message": "Notification deleted successfully"}

@@ -17,12 +17,27 @@ def read_products(
     skip: int = 0,
     limit: int = 100,
     category_id: Optional[str] = None,
-    seller_id: Optional[str] = None
+    seller_id: Optional[str] = None,
+    search: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    province: Optional[str] = None
 ) -> Any:
     """
-    Retrieve all products. Filter by category or seller.
+    Retrieve all products. Filter by category, seller, search keyword, price range, or province location.
     """
-    return product_service.get_products(db, skip=skip, limit=limit, category_id=category_id, seller_id=seller_id)
+    return product_service.get_products(
+        db,
+        skip=skip,
+        limit=limit,
+        category_id=category_id,
+        seller_id=seller_id,
+        search=search,
+        min_price=min_price,
+        max_price=max_price,
+        province=province
+    )
+
 
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(

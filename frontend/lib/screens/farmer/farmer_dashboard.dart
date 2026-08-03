@@ -7,6 +7,8 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import 'sales_analytics.dart';
 import 'improved_add_new_product.dart';
+import 'crop_advisor_screen.dart';
+import '../common/order_contract_history_screen.dart';
 
 class FarmerDashboardScreen extends StatelessWidget {
   const FarmerDashboardScreen({super.key});
@@ -46,6 +48,10 @@ class FarmerDashboardScreen extends StatelessWidget {
             _buildHeader(context),
             const SizedBox(height: 20),
             _buildPerformanceStats(context, activeBids),
+            const SizedBox(height: 24),
+            _buildOrdersShortcut(context, state),
+            const SizedBox(height: 16),
+            _buildAdvisorShortcut(context, state),
             const SizedBox(height: 24),
             _buildIncomingBids(state, activeBids),
             const SizedBox(height: 24),
@@ -632,6 +638,96 @@ class FarmerDashboardScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildOrdersShortcut(BuildContext context, AppState state) {
+    return CustomCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      backgroundColor: AppColors.surface,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const OrderContractHistoryScreen(initialTab: 1, isPushed: true),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.assignment_rounded, color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  state.translate('customer_orders'),
+                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  state.translate('customer_orders_desc'),
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.outline),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvisorShortcut(BuildContext context, AppState state) {
+    return CustomCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      backgroundColor: AppColors.surface,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CropAdvisorScreen(),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.psychology_rounded, color: AppColors.secondary, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  state.translate('crop_diagnostics'),
+                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Diagnose crop diseases & get organic recommendations',
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.outline),
+        ],
+      ),
     );
   }
 }

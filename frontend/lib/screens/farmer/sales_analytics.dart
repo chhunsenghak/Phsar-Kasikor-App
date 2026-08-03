@@ -4,27 +4,71 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
+import '../../services/api/analytics_api.dart';
 
-class SalesAnalyticsScreen extends StatelessWidget {
+class SalesAnalyticsScreen extends StatefulWidget {
   const SalesAnalyticsScreen({super.key});
+
+  @override
+  State<SalesAnalyticsScreen> createState() => _SalesAnalyticsScreenState();
+}
+
+class _SalesAnalyticsScreenState extends State<SalesAnalyticsScreen> {
+  bool _isLoading = true;
+  double _totalYearlySales = 2550.0;
+  int _activeListings = 3;
+  String _conversionRate = '4.2%';
+  int _ordersAccepted = 14;
+  List<Map<String, dynamic>> _monthlyRevenues = [
+    {'month': 'Jan', 'value': 280.0},
+    {'month': 'Feb', 'value': 350.0},
+    {'month': 'Mar', 'value': 190.0},
+    {'month': 'Apr', 'value': 480.0},
+    {'month': 'May', 'value': 310.0},
+    {'month': 'Jun', 'value': 520.0},
+    {'month': 'Jul', 'value': 420.0},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalytics();
+  }
+
+  Future<void> _loadAnalytics() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final res = await AnalyticsApi.fetchFarmerSalesAnalytics(state.token!);
+      setState(() {
+        _totalYearlySales = (res['total_yearly_sales'] as num?)?.toDouble() ?? 0.0;
+        _activeListings = (res['active_listings'] as num?)?.toInt() ?? 0;
+        _conversionRate = res['conversion_rate']?.toString() ?? '0.0%';
+        _ordersAccepted = (res['orders_accepted'] as num?)?.toInt() ?? 0;
+
+        if (res['monthly_revenues'] is List && (res['monthly_revenues'] as List).isNotEmpty) {
+          _monthlyRevenues = (res['monthly_revenues'] as List).map((e) {
+            return {
+              'month': e['month']?.toString() ?? '',
+              'value': (e['value'] as num?)?.toDouble() ?? 0.0,
+            };
+          }).toList();
+        }
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
-
-    // Mock monthly revenues
-    final List<Map<String, dynamic>> monthlyRevenues = [
-      {'month': 'Jan', 'value': 280.0},
-      {'month': 'Feb', 'value': 350.0},
-      {'month': 'Mar', 'value': 190.0},
-      {'month': 'Apr', 'value': 480.0},
-      {'month': 'May', 'value': 310.0},
-      {'month': 'Jun', 'value': 520.0},
-      {'month': 'Jul', 'value': 420.0},
-    ];
-
-    // Find max value to calibrate heights
-    final maxVal = monthlyRevenues.map((e) => e['value'] as double).reduce((a, b) => a > b ? a : b);
+    final maxVal = _monthlyRevenues.map((e) => e['value'] as double).fold(1.0, (a, b) => a > b ? a : b);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -44,156 +88,117 @@ class SalesAnalyticsScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Revenue summary block
-            CustomCard(
-              padding: const EdgeInsets.all(20),
-              backgroundColor: AppColors.primary,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    state.translate('yearly_sales_revenue'),
-                    style: GoogleFonts.inter(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '\$2,550.00',
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildMetricItem(state.translate('active_listings'), '3'),
-                      _buildMetricItem(state.translate('conversion_rate'), '4.2%'),
-                      _buildMetricItem(state.translate('bids_accepted'), '14'),
-                    ],
-                  )
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Bar Chart Container
-            Text(
-              state.translate('monthly_performance'),
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 12),
-            CustomCard(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // Y-Axis and Bars
-                  SizedBox(
-                    height: 200,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: monthlyRevenues.map((data) {
-                        final double val = data['value'] as double;
-                        final String month = data['month'] as String;
-                        // Calculate percentage height
-                        final double pct = val / maxVal;
-                        final double barHeight = (pct * 150).clamp(10.0, 150.0);
-
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                  // Revenue summary block
+                  CustomCard(
+                    padding: const EdgeInsets.all(20),
+                    backgroundColor: AppColors.primary,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          state.translate('yearly_sales_revenue'),
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '\$${_totalYearlySales.toStringAsFixed(2)}',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              '\$${val.toInt()}',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            // The Bar
-                            Container(
-                              width: 24,
-                              height: barHeight,
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryContainer,
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(6),
-                                ),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.primaryContainer,
-                                    AppColors.primaryContainer.withValues(alpha: 0.7),
-                                  ],
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              month,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
+                            _buildMetricItem(state.translate('active_listings'), '$_activeListings'),
+                            _buildMetricItem(state.translate('conversion_rate'), _conversionRate),
+                            _buildMetricItem(state.translate('bids_accepted'), '$_ordersAccepted'),
                           ],
-                        );
-                      }).toList(),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Bar Chart Container
+                  Text(
+                    state.translate('monthly_performance'),
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  CustomCard(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 200,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: _monthlyRevenues.map((data) {
+                              final double val = data['value'] as double;
+                              final String month = data['month'] as String;
+                              final double pct = val / (maxVal == 0 ? 1.0 : maxVal);
+                              final double barHeight = (pct * 150).clamp(10.0, 150.0);
+
+                              return Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '\$${val.toInt()}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: 24,
+                                    height: barHeight,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryContainer,
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(6),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    month,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Sales breakdown insights
-            Text(
-              state.translate('product_performance_breakdowns'),
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 10),
-            CustomCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _buildCropBreakdownRow(
-                    crop: 'Organic Jasmine Rice',
-                    sales: '\$1,560.00',
-                    share: '61% Share',
-                  ),
-                  const Divider(height: 1),
-                  _buildCropBreakdownRow(
-                    crop: 'Premium Yellow Corn',
-                    sales: '\$990.00',
-                    share: '39% Share',
-                  ),
-                ],
-              ),
-            )
-          ],
-        ),
-      ),
     );
   }
 
@@ -211,25 +216,6 @@ class SalesAnalyticsScreen extends StatelessWidget {
           style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
-    );
-  }
-
-  Widget _buildCropBreakdownRow({required String crop, required String sales, required String share}) {
-    return ListTile(
-      leading: const Icon(Icons.eco_rounded, color: AppColors.primary),
-      title: Text(
-        crop,
-        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
-      ),
-      subtitle: Text(share, style: GoogleFonts.inter(fontSize: 12)),
-      trailing: Text(
-        sales,
-        style: GoogleFonts.inter(
-          fontWeight: FontWeight.bold,
-          color: AppColors.primary,
-          fontSize: 14,
-        ),
-      ),
     );
   }
 }
