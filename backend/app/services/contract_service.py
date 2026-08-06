@@ -69,7 +69,16 @@ def create_contract(db: Session, contract_in: ContractCreate, proposer_id: str) 
 def update_contract(db: Session, db_contract: Contract, contract_update: ContractUpdate, updater_id: str) -> Contract:
     old_status = db_contract.contract_status
     update_data = contract_update.model_dump(exclude_unset=True)
-    
+
+    if old_status in ("TERMINATED", "COMPLETED") and update_data:
+        raise Exception(errors.CONTRACT_ALREADY_RESOLVED)
+
+    # Only the seller can activate a contract — that's the real acceptance
+    # of the deal. Without this, the buyer could unilaterally flip their own
+    # proposal to ACTIVE with no actual confirmation from the farmer.
+    if update_data.get("contract_status") == "ACTIVE" and updater_id != db_contract.seller_id:
+        raise Exception(errors.ONLY_SELLER_CAN_ACTIVATE_CONTRACT)
+
     new_start_date = update_data.get("start_date")
     new_end_date = update_data.get("end_date")
     

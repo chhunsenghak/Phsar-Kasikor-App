@@ -3,10 +3,40 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
+import '../../services/api/dispute_api.dart';
 import '../../widgets/custom_card.dart';
+import 'dispute_resolution_screen.dart';
 
-class AdminDashboardOverviewScreen extends StatelessWidget {
+class AdminDashboardOverviewScreen extends StatefulWidget {
   const AdminDashboardOverviewScreen({super.key});
+
+  @override
+  State<AdminDashboardOverviewScreen> createState() => _AdminDashboardOverviewScreenState();
+}
+
+class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScreen> {
+  int _openDisputeCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDisputeCount();
+  }
+
+  Future<void> _loadDisputeCount() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    try {
+      final disputes = await DisputeApi.fetchAllDisputes(state.token!);
+      if (!mounted) return;
+      setState(() {
+        _openDisputeCount = disputes.where((d) => d['status'] == 'OPEN').length;
+      });
+    } catch (_) {
+      // Stat card just keeps showing 0 if this fails — not critical to the
+      // rest of the dashboard.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +50,7 @@ class AdminDashboardOverviewScreen extends StatelessWidget {
         children: [
           // Hello Header
           Text(
-            'System Control Panel',
+            state.translate('system_control_panel'),
             style: GoogleFonts.inter(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -29,7 +59,7 @@ class AdminDashboardOverviewScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Security overview, verification audits & moderations',
+            state.translate('system_control_subtitle'),
             style: GoogleFonts.inter(
               fontSize: 14,
               color: AppColors.onSurfaceVariant,
@@ -47,28 +77,34 @@ class AdminDashboardOverviewScreen extends StatelessWidget {
             childAspectRatio: 1.4,
             children: [
               _buildAdminStatCard(
-                label: 'Total Farmers',
+                label: state.translate('total_farmers'),
                 value: '124',
                 icon: Icons.agriculture_rounded,
                 color: AppColors.primary,
               ),
               _buildAdminStatCard(
-                label: 'Pending Reviews',
+                label: state.translate('pending_reviews'),
                 value: '${verifications.length}',
                 icon: Icons.hourglass_empty_rounded,
                 color: Colors.amber[900]!,
               ),
               _buildAdminStatCard(
-                label: 'Flagged Content',
+                label: state.translate('flagged_content'),
                 value: '1',
                 icon: Icons.flag_rounded,
                 color: AppColors.error,
               ),
               _buildAdminStatCard(
-                label: 'Open Disputes',
-                value: '0',
+                label: state.translate('open_disputes'),
+                value: '$_openDisputeCount',
                 icon: Icons.gavel_rounded,
                 color: AppColors.tertiary,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const DisputeResolutionScreen()),
+                  ).then((_) => _loadDisputeCount());
+                },
               ),
             ],
           ),
@@ -76,7 +112,7 @@ class AdminDashboardOverviewScreen extends StatelessWidget {
 
           // Platform Activities Log
           Text(
-            'System Activity Log',
+            state.translate('system_activity_log'),
             style: GoogleFonts.inter(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -142,9 +178,11 @@ class AdminDashboardOverviewScreen extends StatelessWidget {
     required String value,
     required IconData icon,
     required Color color,
+    VoidCallback? onTap,
   }) {
     return CustomCard(
       padding: const EdgeInsets.all(16),
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,

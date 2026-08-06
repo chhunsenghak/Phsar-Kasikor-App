@@ -290,6 +290,7 @@ class ProductDetailScreen extends StatelessWidget {
                   farmerName: product.farmerName,
                   isVerifiedFarmer: hasCert,
                   location: product.location,
+                  sellerId: product.sellerId,
                 ),
               ),
             );
@@ -532,21 +533,13 @@ class _QuantitySelectorSheetState extends State<_QuantitySelectorSheet> {
           MaterialPageRoute(builder: (context) => const CartScreen()),
         );
 
-    if (result.cappedToStock) {
-      AppSnackBar.showNotice(
-        messenger,
-        message: message,
-        actionLabel: state.translate('view_cart'),
-        onAction: onViewCart,
-      );
-    } else {
-      AppSnackBar.showSuccess(
-        messenger,
-        message: message,
-        actionLabel: state.translate('view_cart'),
-        onAction: onViewCart,
-      );
-    }
+    AppSnackBar.showOnMessenger(
+      messenger,
+      message,
+      type: result.cappedToStock ? AppSnackBarType.info : AppSnackBarType.success,
+      actionLabel: state.translate('view_cart'),
+      onAction: onViewCart,
+    );
   }
 
   void _buyNow(AppState state) {

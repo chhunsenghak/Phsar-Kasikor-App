@@ -103,7 +103,7 @@ class _CropAdvisorScreenState extends State<CropAdvisorScreen> {
                       const Icon(Icons.psychology_outlined, color: AppColors.primary, size: 24),
                       const SizedBox(width: 10),
                       Text(
-                        'AI Agronomist Diagnostics',
+                        state.translate('ai_agronomist_diagnostics'),
                         style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ],
@@ -171,11 +171,11 @@ class _CropAdvisorScreenState extends State<CropAdvisorScreen> {
 
             // Reference Section
             Text(
-              'Common Organic Crop Issues',
+              state.translate('common_organic_crop_issues'),
               style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            ..._commonDiseases.map((d) => _buildDiseaseCard(d)),
+            ..._commonDiseases.map((d) => _buildDiseaseCard(state, d)),
             const SizedBox(height: 40),
           ],
         ),
@@ -183,7 +183,7 @@ class _CropAdvisorScreenState extends State<CropAdvisorScreen> {
     );
   }
 
-  Widget _buildDiseaseCard(Map<String, String> disease) {
+  Widget _buildDiseaseCard(AppState state, Map<String, String> disease) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: CustomCard(
@@ -197,12 +197,12 @@ class _CropAdvisorScreenState extends State<CropAdvisorScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Symptoms: ${disease['symptoms']!}',
+              state.translate('symptoms_prefix', arguments: {'symptoms': disease['symptoms']!}),
               style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: 4),
             Text(
-              'Organic Care: ${disease['treatment']!}',
+              state.translate('organic_care_prefix', arguments: {'treatment': disease['treatment']!}),
               style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
             ),
           ],

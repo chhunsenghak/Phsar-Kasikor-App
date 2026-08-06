@@ -79,7 +79,7 @@ def review_certificate(
     cert_id: str,
     review_in: FarmerCertificateReview,
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_admin_user)
 ) -> Any:
     """
     Admin reviews and approves or rejects a farmer certificate.

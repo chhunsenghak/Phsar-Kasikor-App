@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../services/api/bookmark_api.dart';
 
 class SavedCropsScreen extends StatefulWidget {
@@ -53,15 +54,11 @@ class _SavedCropsScreenState extends State<SavedCropsScreen> {
         _bookmarks.removeWhere((b) => b['product_id'] == productId || b['product']?['id'] == productId);
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from Saved Listings')),
-        );
+        AppSnackBar.success(context, state.translate('removed_from_saved'));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        AppSnackBar.error(context, state.translate('error_prefix', arguments: {'error': e.toString()}));
       }
     }
   }
@@ -89,7 +86,7 @@ class _SavedCropsScreenState extends State<SavedCropsScreen> {
           : _bookmarks.isEmpty
               ? Center(
                   child: Text(
-                    'No saved crops yet.',
+                    state.translate('no_saved_crops'),
                     style: GoogleFonts.inter(color: AppColors.outline),
                   ),
                 )
@@ -100,7 +97,7 @@ class _SavedCropsScreenState extends State<SavedCropsScreen> {
                     final item = _bookmarks[index];
                     final prodData = item['product'] ?? {};
                     final productId = prodData['id'] ?? item['product_id'] ?? '';
-                    final prodName = prodData['product_name'] ?? 'Crop Listing';
+                    final prodName = prodData['product_name'] ?? state.translate('crop_listing');
                     final price = (prodData['price_per_unit'] as num?)?.toDouble() ?? 0.0;
                     final unit = prodData['unit_type'] ?? 'kg';
 

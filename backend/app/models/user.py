@@ -29,6 +29,12 @@ class User(Base):
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
     deleted_by = Column(String(36), nullable=True)
+
+    # Login rate limiting — failed_login_attempts resets to 0 on any
+    # successful login; locked_until is set once attempts hit the threshold
+    # and cleared automatically once it's in the past.
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

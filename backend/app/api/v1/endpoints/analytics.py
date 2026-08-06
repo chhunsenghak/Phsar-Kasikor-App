@@ -29,9 +29,9 @@ def get_farmer_sales_analytics(
 
     # Orders received by farmer
     orders = db.query(Order).filter(Order.seller_id == current_user.id).all()
-    confirmed_orders = [o for o in orders if o.status in ["CONFIRMED", "DELIVERED", "ACCEPTED", "PAID"]]
+    confirmed_orders = [o for o in orders if o.order_status in ["CONFIRMED", "SHIPPED", "DELIVERED"]]
 
-    total_yearly_sales = sum(float(o.total_price) for o in confirmed_orders)
+    total_yearly_sales = sum(float(o.total_amount) for o in confirmed_orders)
     orders_accepted = len(confirmed_orders)
 
     # Conversion rate approximation
@@ -49,7 +49,7 @@ def get_farmer_sales_analytics(
     for o in confirmed_orders:
         if o.created_at:
             m_str = months[o.created_at.month - 1]
-            revenue_by_month[m_str] += float(o.total_price)
+            revenue_by_month[m_str] += float(o.total_amount)
 
     current_month_idx = datetime.now().month
     display_months = months[:current_month_idx] if current_month_idx >= 7 else months[:7]

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
+from sqlalchemy import Boolean, Column, String, Text, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -13,6 +13,10 @@ class ForumPost(Base):
     content = Column(Text, nullable=False)
     category = Column(String, nullable=False, default="General") # General, Pest Control, Organic Farming, Market Prices
     likes_count = Column(Integer, nullable=False, default=0)
+    # Set by admin moderation when a content report against this post is
+    # resolved — hidden posts are excluded from listings/detail instead of
+    # being hard-deleted, so comments/history aren't destroyed.
+    is_hidden = Column(Boolean, nullable=False, default=False)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

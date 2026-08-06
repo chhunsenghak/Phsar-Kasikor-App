@@ -17,9 +17,9 @@ class CartScreen extends StatelessWidget {
       qty == qty.roundToDouble() ? qty.toInt().toString() : qty.toString();
 
   void _notifyStockCap(BuildContext context, AppState state, CartItem item) {
-    AppSnackBar.showNotice(
-      ScaffoldMessenger.of(context),
-      message: state.translate('stock_limit_notice', arguments: {
+    AppSnackBar.info(
+      context,
+      state.translate('stock_limit_notice', arguments: {
         'count': _formatQty(item.product.quantity),
         'unit': item.product.unit,
       }),

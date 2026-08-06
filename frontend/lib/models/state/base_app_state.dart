@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api/base_api.dart';
+import '../../services/api/notification_api.dart';
 import '../../services/api/user_api.dart';
 import '../../services/web_download.dart';
 import '../../constants/translations.dart';
@@ -64,19 +66,33 @@ class BidOffer {
   final String id;
   final MarketProduct product;
   final String buyerName;
+  // Real backend user ids for the two parties — null for local-only mock
+  // negotiations (logged-out browsing) that never became a real contract.
+  // Needed to match "my" negotiation against the current user instead of a
+  // hardcoded display name, and to know who's allowed to accept/reject.
+  final String? buyerId;
+  final String? sellerId;
   double offeredPrice;
   double quantity;
   String status; // 'pending', 'accepted', 'counter_offered', 'rejected'
   List<String> chatMessages;
+  // The forward delivery window a signed contract commits to — null for
+  // bids/negotiations that haven't become a real backend contract yet.
+  final DateTime? startDate;
+  final DateTime? endDate;
 
   BidOffer({
     required this.id,
     required this.product,
     required this.buyerName,
+    this.buyerId,
+    this.sellerId,
     required this.offeredPrice,
     required this.quantity,
     this.status = 'pending',
     required this.chatMessages,
+    this.startDate,
+    this.endDate,
   });
 }
 
@@ -256,6 +272,14 @@ class BaseAppState extends ChangeNotifier {
   }
 
   Future<void> restoreSavedSession() async {
+    // On web, reading saved session data below is fully synchronous (no
+    // `await` is ever hit when a session already exists), which would let
+    // this whole method — including the notifyListeners() at the end —
+    // run to completion within the same synchronous call stack as
+    // SplashScreen's initState/build. Forcing a real async yield first
+    // guarantees everything below always runs after the current build
+    // frame finishes, regardless of which path executes synchronously.
+    await Future<void>.delayed(Duration.zero);
     try {
       String? savedToken;
       String? savedProfileStr;
@@ -299,6 +323,7 @@ class BaseAppState extends ChangeNotifier {
         _userName = profile['username'] ?? profile['email'] ?? 'User';
 
         loadBackendData();
+        registerPushToken();
         notifyListeners();
       }
     } catch (e) {
@@ -364,6 +389,42 @@ class BaseAppState extends ChangeNotifier {
     // Overridden by child AppState class
   }
 
+  /// Requests notification permission, grabs this device's FCM token, and
+  /// registers it with the backend so server-side events (new order, new
+  /// chat message, etc.) can push to it. Fire-and-forget from both the
+  /// login flow and session-restore — a failure here (permission denied,
+  /// no network) must never block login itself.
+  Future<void> registerPushToken() async {
+    if (token == null) return;
+    // Web push needs a firebase-messaging-sw.js service worker at the web
+    // root *and* a VAPID key from the Firebase console to mint a token at
+    // all — neither is set up yet, so every attempt here would just fail
+    // noisily. Skip outright rather than log a guaranteed failure on every
+    // login/session-restore; mobile (the primary target) is unaffected.
+    if (kIsWeb) return;
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission();
+      if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+
+      final fcmToken = await messaging.getToken();
+      if (fcmToken == null) return;
+
+      String? platform;
+      if (kIsWeb) {
+        platform = 'web';
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        platform = 'ios';
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        platform = 'android';
+      }
+
+      await NotificationApi.registerDevice(token!, fcmToken, platform: platform);
+    } catch (e) {
+      debugPrint('Failed to register push token: $e');
+    }
+  }
+
   Future<void> addNotification(String title, String body) async {
     // Overridden by NotificationStateMixin
   }
@@ -391,6 +452,7 @@ class BaseAppState extends ChangeNotifier {
 
     _saveSessionToStorage();
     loadBackendData();
+    registerPushToken();
     notifyListeners();
   }
 

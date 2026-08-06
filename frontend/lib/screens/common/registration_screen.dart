@@ -8,6 +8,7 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_input.dart';
 import 'app_shell.dart';
 import '../../services/api/auth_api.dart';
+import '../../widgets/app_snackbar.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -76,12 +77,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString().replaceAll('Exception: ', '')),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+          AppSnackBar.error(context, e.toString().replaceAll('Exception: ', ''));
         }
       }
     }

@@ -143,6 +143,84 @@ class AuthApi {
     }
   }
 
+  /// Requests a password-reset code be emailed to this address.
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/v1/auth/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Failed to request password reset');
+      } catch (_) {
+        throw Exception('Server communication error');
+      }
+    }
+  }
+
+  /// Completes a password reset using the code emailed to the user.
+  static Future<Map<String, dynamic>> resetPassword(String email, String code, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/v1/auth/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'code': code, 'new_password': newPassword}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Failed to reset password');
+      } catch (_) {
+        throw Exception('Server communication error');
+      }
+    }
+  }
+
+  /// Sends (or resends) an email-verification code to the current user.
+  static Future<Map<String, dynamic>> sendVerificationEmail(String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/v1/auth/send-verification-email'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Failed to send verification email');
+      } catch (_) {
+        throw Exception('Server communication error');
+      }
+    }
+  }
+
+  /// Confirms the current user's email using the code they were sent.
+  static Future<Map<String, dynamic>> verifyEmail(String token, String code) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/v1/auth/verify-email'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'code': code}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Failed to verify email');
+      } catch (_) {
+        throw Exception('Server communication error');
+      }
+    }
+  }
+
   /// Retrieve current user profile details using the JWT access token
   static Future<Map<String, dynamic>> fetchUserProfile(String token) async {
     final response = await http.get(

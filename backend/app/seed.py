@@ -24,40 +24,46 @@ ROLES_TO_SEED = {
     "ADMIN": "Administrator role with full backend control",
     "ASSOCIATION": "Association Agricultural group role representing local cooperatives",
     "FARMER": "Producer farmer producing crops and managing listings",
-    "MERCHANT": "Merchant/Agribusiness buyer sourcing products",
-    "TECHNICIAN": "Agricultural technician providing advice and checks",
     "BUYER": "Standard crop buyer on the marketplace platform"
 }
 
 # Default Users definitions (Representative accounts for development testing)
 USERS_TO_SEED = [
     {
-        "email": "admin@phsarkasikor.com",
+        "email": "phsarkasikorapp.noreply@gmail.com",
         "username": "admin",
         "phoneNumber": "+85511112222",
         "role_id": 1,
-        "password": "adminpassword123"
+        "is_active": True,
+        "is_verified": True,
+        "password": "password123"
     },
     {
-        "email": "farmer@phsarkasikor.com",
-        "username": "sok_farmer",
+        "email": "chhun.senghak.web@gmail.com",
+        "username": "Chhun Farmer",
         "phoneNumber": "+85512223333",
         "role_id": 3,
-        "password": "farmerpassword123"
+        "is_active": True,
+        "is_verified": True,
+        "password": "password123"
     },
     {
-        "email": "buyer@phsarkasikor.com",
-        "username": "chavy_buyer",
+        "email": "senghakchhun34@gmail.com",
+        "username": "Chhun Buyer",
         "phoneNumber": "+85588889999",
-        "role_id": 6,
-        "password": "buyerpassword123"
+        "role_id": 4,
+        "is_active": True,
+        "is_verified": True,
+        "password": "password123"
     },
     {
-        "email": "cooperative@phsarkasikor.com",
-        "username": "cooperative_association",
+        "email": "cooperative@association.com",
+        "username": "Cooperative Association",
         "phoneNumber": "+85599990000",
         "role_id": 2,
-        "password": "cooppassword123"
+        "is_active": True,
+        "is_verified": True,
+        "password": "password123"
     }
 ]
 

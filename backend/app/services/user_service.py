@@ -1,9 +1,13 @@
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User
 from app.schemas.user import UserCreate
+
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION_MINUTES = 15
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
@@ -79,22 +83,43 @@ def create_user(db: Session, user_in: UserCreate) -> User:
     return db_obj
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+def authenticate_user(db: Session, email: str, password: str) -> Tuple[Optional[User], Optional[str]]:
     """
-    Authenticate a user by checking their email or phone number, and verifying their password.
-    Note: the parameter 'email' contains the user-provided login identifier (which can be email or phone).
+    Authenticate a user by checking their email or phone number, and verifying
+    their password. Note: the parameter 'email' contains the user-provided
+    login identifier (which can be email or phone).
+
+    Returns (user, None) on success, or (None, error_code) on failure —
+    error_code is "ACCOUNT_LOCKED" if the account is currently locked out
+    from too many failed attempts, otherwise "INCORRECT_CREDENTIALS". A
+    failed attempt against a real account increments its counter and locks
+    it once the threshold is hit; a successful login clears both.
     """
     user = None
     if email:
         user = get_user_by_email(db, email)
         if not user:
             user = get_user_by_phone(db, email)
-            
+
     if not user:
-        return None
+        return None, "INCORRECT_CREDENTIALS"
+
+    if user.locked_until and user.locked_until > datetime.now(timezone.utc).replace(tzinfo=None):
+        return None, "ACCOUNT_LOCKED"
+
     if not verify_password(password, user.password):
-        return None
-    return user
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+            user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        db.commit()
+        return None, "INCORRECT_CREDENTIALS"
+
+    if user.failed_login_attempts or user.locked_until:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.commit()
+
+    return user, None
 
 
 def get_all_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:

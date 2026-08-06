@@ -3,8 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
+import '../../services/api/cooperative_api.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/custom_input.dart';
+import '../../widgets/app_snackbar.dart';
 
 class CooperativeDashboardScreen extends StatefulWidget {
   const CooperativeDashboardScreen({super.key});
@@ -14,46 +17,137 @@ class CooperativeDashboardScreen extends StatefulWidget {
 }
 
 class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen> {
-  final List<Map<String, dynamic>> _members = [
-    {
-      'name': 'Sok Farmer',
-      'location': 'Sangkae, Battambang',
-      'productsCount': 3,
-      'status': 'Active',
-      'certPending': 'COrAA Organic Standard',
-    },
-    {
-      'name': 'Sopheap Organic Farm',
-      'location': 'Banonom, Battambang',
-      'productsCount': 4,
-      'status': 'Active',
-      'certPending': 'CamGAP Certificate',
-    },
-    {
-      'name': 'Banteay Meanchey Cooperative',
-      'location': 'Mongkol Borey, Banteay Meanchey',
-      'productsCount': 2,
-      'status': 'Pending Approval',
-      'certPending': null,
-    }
-  ];
+  bool _isLoading = true;
+  String? _error;
+  List<dynamic> _members = [];
+  List<dynamic> _stockSummary = [];
 
-  void _endorseMember(BuildContext context, AppState state, String memberName, String cert) {
-    state.addNotification(
-      'Certification Endorsed',
-      'Cooperative officially endorsed $memberName for certificate: $cert.',
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        CooperativeApi.fetchMembers(state.token!),
+        CooperativeApi.fetchStockSummary(state.token!),
+      ]);
+      setState(() {
+        _members = results[0];
+        _stockSummary = results[1];
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _inviteMember() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    final controller = TextEditingController();
+    final identifier = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(state.translate('invite_member'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: CustomInput(
+          label: '',
+          controller: controller,
+          hintText: state.translate('invite_member_hint'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(state.translate('cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: Text(state.translate('send_invite')),
+          ),
+        ],
+      ),
     );
-    _showPremiumStatusDialog(context, state, true, 'Endorsement Successful', 'Successfully endorsed $memberName for MAFF review.');
+
+    if (identifier == null || identifier.isEmpty || state.token == null) return;
+    try {
+      final result = await CooperativeApi.inviteMember(state.token!, identifier);
+      if (!mounted) return;
+      AppSnackBar.success(context, state.translate('invite_sent_success', arguments: {'name': result['farmer_name'] ?? identifier}));
+      _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+    }
+  }
+
+  Future<void> _removeMember(Map<String, dynamic> member) async {
+    final state = Provider.of<AppState>(context, listen: false);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(state.translate('remove_member'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Text(state.translate('remove_member_confirm', arguments: {'name': member['farmer_name'] ?? ''})),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(state.translate('cancel'))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(state.translate('remove_member'), style: const TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || state.token == null) return;
+    try {
+      await CooperativeApi.removeMember(state.token!, member['id']);
+      _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
-    final count = _members.where((m) => m['status'] == 'Active').length;
+    final activeCount = _members.where((m) => m['status'] == 'active').length;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+            const SizedBox(height: 12),
+            Text(_error!, textAlign: TextAlign.center, style: GoogleFonts.inter(color: AppColors.outline)),
+            const SizedBox(height: 12),
+            CustomButton.secondary(text: state.translate('retry'), onPressed: _loadData),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,7 +165,7 @@ class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      state.translate('coop_member_count').replaceAll('{count}', count.toString()),
+                      state.translate('coop_member_count').replaceAll('{count}', activeCount.toString()),
                       style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
                     ),
                   ],
@@ -96,22 +190,35 @@ class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen>
             const SizedBox(height: 24),
 
             // Member Directory
-            Text(
-              state.translate('member_directory'),
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  state.translate('member_directory'),
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                ),
+                TextButton.icon(
+                  onPressed: _inviteMember,
+                  icon: const Icon(Icons.person_add_alt_rounded, size: 18),
+                  label: Text(state.translate('invite_member')),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
-            ..._members.map((member) => _buildMemberCard(context, state, member)),
+            if (_members.isEmpty)
+              CustomCard(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    state.translate('no_coop_members_yet'),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.outline),
+                  ),
+                ),
+              )
+            else
+              ..._members.map((member) => _buildMemberCard(context, state, member)),
 
-            const SizedBox(height: 24),
-
-            // Endorsements
-            Text(
-              'Pending Endorsements',
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-            ),
-            const SizedBox(height: 12),
-            _buildEndorsementsQueue(context, state),
             const SizedBox(height: 40),
           ],
         ),
@@ -120,44 +227,58 @@ class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen>
   }
 
   Widget _buildAggregatedStockCard(AppState state) {
-    final stocks = [
-      {'crop': 'Jasmine Rice', 'qty': '3,500 kg', 'farms': '3 Farms'},
-      {'crop': 'Ginger Roots', 'qty': '1,200 kg', 'farms': '2 Farms'},
-      {'crop': 'Battambang Oranges', 'qty': '800 kg', 'farms': '1 Farm'},
-    ];
+    if (_stockSummary.isEmpty) {
+      return CustomCard(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            state.translate('no_coop_members_yet'),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.outline),
+          ),
+        ),
+      );
+    }
 
     return CustomCard(
       padding: const EdgeInsets.all(16),
       child: Column(
-        children: stocks.map((s) {
+        children: _stockSummary.map((s) {
+          final double qty = (s['total_quantity'] as num?)?.toDouble() ?? 0;
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      s['crop']!,
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
-                    ),
-                  ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          s['crop_name'] as String? ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Row(
                   children: [
                     Text(
-                      s['qty']!,
+                      '${qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 1)} ${s['unit'] ?? ''}',
                       style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: AppColors.primary),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '(${s['farms']!})',
+                      '(${s['farms_count']})',
                       style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
                     ),
                   ],
@@ -171,11 +292,14 @@ class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen>
   }
 
   Widget _buildMemberCard(BuildContext context, AppState state, Map<String, dynamic> member) {
+    final String status = (member['status'] as String? ?? 'active').toLowerCase();
+    final bool isActive = status == 'active';
+    final String statusLabel = state.translate('member_status_$status');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: CustomCard(
         padding: const EdgeInsets.all(16),
-        onTap: () => _showMemberDetailsSheet(context, state, member),
         child: Row(
           children: [
             Container(
@@ -189,9 +313,12 @@ class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(member['name']!, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text(member['farmer_name'] as String? ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 2),
-                  Text(member['location']!, style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline)),
+                  Text(
+                    state.translate('crops_count', arguments: {'count': (member['products_count'] ?? 0).toString()}),
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
+                  ),
                 ],
               ),
             ),
@@ -201,198 +328,24 @@ class _CooperativeDashboardScreenState extends State<CooperativeDashboardScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: member['status'] == 'Active' ? AppColors.primary.withValues(alpha: 0.1) : AppColors.outlineVariant.withValues(alpha: 0.1),
+                    color: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.outlineVariant.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    member['status']!,
-                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: member['status'] == 'Active' ? AppColors.primary : AppColors.onSurfaceVariant),
+                    statusLabel,
+                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? AppColors.primary : AppColors.onSurfaceVariant),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${member['productsCount']} Crops',
-                  style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: () => _removeMember(member),
+                  child: Icon(Icons.remove_circle_outline_rounded, size: 18, color: AppColors.error.withValues(alpha: 0.7)),
                 ),
               ],
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildEndorsementsQueue(BuildContext context, AppState state) {
-    final list = _members.where((m) => m['certPending'] != null).toList();
-    if (list.isEmpty) {
-      return CustomCard(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Text('All certificates endorsed.', style: GoogleFonts.inter(fontSize: 13, color: AppColors.outline)),
-        ),
-      );
-    }
-
-    return Column(
-      children: list.map((item) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: CustomCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item['name']!, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const SizedBox(height: 2),
-                      Text(item['certPending']!, style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-                CustomButton(
-                  text: state.translate('coop_endorse'),
-                  backgroundColor: AppColors.primary,
-                  onPressed: () => _endorseMember(context, state, item['name']!, item['certPending']!),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  void _showMemberDetailsSheet(BuildContext context, AppState state, Map<String, dynamic> member) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                member['name']!,
-                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Location: ${member['location']!}',
-                style: GoogleFonts.inter(fontSize: 13, color: AppColors.outline),
-              ),
-              const Divider(height: 32),
-              Text(
-                'Active Cooperative Listings',
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.onSurfaceVariant),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.eco_rounded, color: AppColors.primary),
-                title: Text('Phka Rumduol Jasmine Rice', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                trailing: Text('1,500 kg', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.eco_rounded, color: AppColors.primary),
-                title: Text('Organic Battambang Oranges', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                trailing: Text('800 kg', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 24),
-              CustomButton(
-                text: state.translate('cancel'),
-                backgroundColor: AppColors.outlineVariant,
-                onPressed: () => Navigator.pop(context),
-              )
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showPremiumStatusDialog(BuildContext context, AppState state, bool isSuccess, String title, String body) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Status Dialog',
-      transitionDuration: const Duration(milliseconds: 400),
-      pageBuilder: (context, anim1, anim2) => const SizedBox(),
-      transitionBuilder: (context, anim1, anim2, child) {
-        final curve = CurvedAnimation(parent: anim1, curve: Curves.easeOutBack);
-        return ScaleTransition(
-          scale: curve,
-          child: Center(
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 32),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    )
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: isSuccess ? AppColors.primary.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isSuccess ? Icons.check_circle_rounded : Icons.error_rounded,
-                        color: isSuccess ? AppColors.primary : AppColors.error,
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      body,
-                      style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant, height: 1.5),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: CustomButton(
-                        text: state.translate('ok'),
-                        backgroundColor: isSuccess ? AppColors.primary : AppColors.error,
-                        onPressed: () {
-                          Navigator.pop(context);
-                          setState(() {
-                            _members.removeWhere((m) => m['name'] == 'Sok Farmer');
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

@@ -2,6 +2,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.notification import Notification
 from app.schemas.notification import NotificationCreate
+from app.services import push_service
 
 from datetime import datetime, timezone
 
@@ -20,6 +21,19 @@ def create_notification(db: Session, notification_in: NotificationCreate) -> Not
     db.add(db_notification)
     db.commit()
     db.refresh(db_notification)
+
+    # Push is best-effort — every existing call site gets it for free, but a
+    # failure here must never take down notification creation itself.
+    try:
+        push_service.send_push(
+            db,
+            user_id=notification_in.user_id,
+            title=notification_in.title,
+            body=notification_in.message,
+        )
+    except Exception:
+        pass
+
     return db_notification
 
 def mark_notification_as_read(db: Session, notification_id: str, user_id: str) -> Optional[Notification]:

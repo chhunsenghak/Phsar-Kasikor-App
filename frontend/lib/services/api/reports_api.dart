@@ -12,6 +12,15 @@ class ReportsApi {
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }
 
+  static Future<Map<String, dynamic>> reportPost(String token, String postId, String reason) async {
+    final response = await http.post(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/reports/posts/$postId/report'),
+      headers: BaseApi.getHeaders(token, json: true),
+      body: jsonEncode({'reason': reason}),
+    );
+    return BaseApi.handleResponse(response) as Map<String, dynamic>;
+  }
+
   static Future<List<dynamic>> fetchAdminReports(String token) async {
     final response = await http.get(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/reports/admin/reports'),

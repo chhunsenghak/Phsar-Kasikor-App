@@ -5,6 +5,8 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/trust_badge.dart';
+import '../../widgets/grid_list_toggle.dart';
+import '../../widgets/product_collection_view.dart';
 import 'product_detail.dart';
 import '../common/error_screens.dart';
 
@@ -81,7 +83,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       ...state.backendCategories.map((c) => c['name']?.toString() ?? '').where((n) => n.isNotEmpty)
     ];
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,9 +101,14 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
           ],
           _buildViewToggleHeaders(state),
           const SizedBox(height: 8),
-          _isGridView
-              ? _buildProductGrid(context, state, filtered)
-              : _buildProductList(context, state, filtered),
+          ProductCollectionView(
+            isGridView: _isGridView,
+            items: filtered,
+            gridItemBuilder: (context, product) => _buildProductCard(context, state, product),
+            listItemBuilder: (context, product) => _buildProductTile(context, state, product),
+            emptyState: _buildEmptyState(state),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -465,34 +472,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             color: AppColors.onSurface,
           ),
         ),
-        Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.grid_view_rounded,
-                color: _isGridView ? AppColors.primary : AppColors.outline,
-                size: 20,
-              ),
-              onPressed: () {
-                setState(() {
-                  _isGridView = true;
-                });
-              },
-            ),
-            IconButton(
-              icon: Icon(
-                Icons.view_list_rounded,
-                color: !_isGridView ? AppColors.primary : AppColors.outline,
-                size: 20,
-              ),
-              onPressed: () {
-                setState(() {
-                  _isGridView = false;
-                });
-              },
-            ),
-          ],
-        )
+        GridListToggle(
+          isGridView: _isGridView,
+          onChanged: (value) => setState(() => _isGridView = value),
+        ),
       ],
     );
   }
@@ -539,94 +522,33 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     );
   }
 
-  Widget _buildProductGrid(BuildContext context, AppState state, List<dynamic> products) {
-    if (products.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40.0),
-        child: Column(
-          children: [
-            const NoResultsScreen(),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _selectedLocation = 'All';
-                  _sortBy = 'none';
-                  state.setCategory('All');
-                  state.setSearchQuery('');
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'Reset All Filters',
-                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
+  Widget _buildEmptyState(AppState state) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40.0),
+      child: Column(
+        children: [
+          const NoResultsScreen(),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _selectedLocation = 'All';
+                _sortBy = 'none';
+                state.setCategory('All');
+                state.setSearchQuery('');
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ],
-        ),
-      );
-    }
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+            child: Text(
+              state.translate('reset_all_filters'),
+              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return _buildProductCard(context, state, product);
-      },
-    );
-  }
-
-  Widget _buildProductList(BuildContext context, AppState state, List<dynamic> products) {
-    if (products.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40.0),
-        child: Column(
-          children: [
-            const NoResultsScreen(),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _selectedLocation = 'All';
-                  _sortBy = 'none';
-                  state.setCategory('All');
-                  state.setSearchQuery('');
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'Reset All Filters',
-                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: products.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return _buildProductTile(context, state, product);
-      },
     );
   }
 
@@ -647,32 +569,46 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLow,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppDesign.borderRadiusDefault),
-                ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppDesign.borderRadiusDefault),
               ),
-              child: Stack(
-                children: [
-                  Center(
-                    child: Icon(
-                      Icons.agriculture_rounded,
-                      size: 48,
-                      color: AppColors.outline.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  if (product.isVerifiedFarmer)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: const TrustBadge(
-                        certType: 'GAP',
-                        isMini: true,
+              child: Container(
+                width: double.infinity,
+                color: AppColors.surfaceContainerLow,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    product.imageUrl.isEmpty
+                        ? Center(
+                            child: Icon(
+                              Icons.agriculture_rounded,
+                              size: 48,
+                              color: AppColors.outline.withValues(alpha: 0.5),
+                            ),
+                          )
+                        : Image.network(
+                            product.resolvedImageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Icon(
+                                Icons.agriculture_rounded,
+                                size: 48,
+                                color: AppColors.outline.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ),
+                    if (product.isVerifiedFarmer)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: const TrustBadge(
+                          certType: 'GAP',
+                          isMini: true,
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -748,17 +684,27 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       },
       child: Row(
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+            child: Container(
+              width: 72,
+              height: 72,
               color: AppColors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-            ),
-            child: Icon(
-              Icons.agriculture_rounded,
-              size: 32,
-              color: AppColors.outline.withValues(alpha: 0.5),
+              child: product.imageUrl.isEmpty
+                  ? Icon(
+                      Icons.agriculture_rounded,
+                      size: 32,
+                      color: AppColors.outline.withValues(alpha: 0.5),
+                    )
+                  : Image.network(
+                      product.resolvedImageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.agriculture_rounded,
+                        size: 32,
+                        color: AppColors.outline.withValues(alpha: 0.5),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
@@ -806,7 +752,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                       ),
                     ),
                     Text(
-                      '${product.quantity.toInt()} ${product.unit} in stock',
+                      state.translate('in_stock_suffix', arguments: {
+                        'qty': product.quantity.toInt().toString(),
+                        'unit': product.unit,
+                      }),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: AppColors.onSurfaceVariant,

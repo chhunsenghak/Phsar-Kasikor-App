@@ -27,3 +27,11 @@ class Order(Base):
     buyer = relationship("User", foreign_keys=[buyer_id], backref="buyer_orders")
     seller = relationship("User", foreign_keys=[seller_id], backref="seller_orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
+    @property
+    def buyer_name(self):
+        return self.buyer.username if self.buyer else None
+
+    @property
+    def seller_name(self):
+        return self.seller.username if self.seller else None

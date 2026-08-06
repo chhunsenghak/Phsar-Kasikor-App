@@ -17,4 +17,8 @@ from app.models.saved_crop import SavedCrop
 from app.models.forum import ForumPost, ForumComment
 from app.models.content_report import ContentReport
 from app.models.cooperative import Cooperative, CooperativeMember
+from app.models.device_token import DeviceToken
+from app.models.verification_code import VerificationCode
+from app.models.review import Review
+from app.models.dispute import Dispute
 

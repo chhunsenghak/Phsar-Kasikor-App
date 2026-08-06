@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
@@ -8,11 +8,19 @@ from app.schemas.order import OrderCreate, OrderUpdate
 from app.schemas.notification import NotificationCreate
 from app.services import notification_service
 
+# Below this, a listing is "running low" — worth telling the farmer about
+# before they oversell or a buyer hits an empty listing.
+LOW_STOCK_THRESHOLD = 10
+
 def get_order(db: Session, order_id: str) -> Optional[Order]:
-    return db.query(Order).filter(Order.id == order_id).first()
+    return db.query(Order).options(
+        joinedload(Order.buyer), joinedload(Order.seller)
+    ).filter(Order.id == order_id).first()
 
 def get_orders_for_user(db: Session, user_id: str, skip: int = 0, limit: int = 100) -> List[Order]:
-    return db.query(Order).filter(
+    return db.query(Order).options(
+        joinedload(Order.buyer), joinedload(Order.seller)
+    ).filter(
         (Order.buyer_id == user_id) | (Order.seller_id == user_id)
     ).order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
 
@@ -63,7 +71,26 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
         total_amount += subtotal
 
         # Decrease stock availability
-        db_product.quantity_available = float(db_product.quantity_available) - quantity
+        old_quantity = float(db_product.quantity_available)
+        new_quantity = old_quantity - quantity
+        db_product.quantity_available = new_quantity
+
+        # Notify only on the crossing, not on every subsequent order once a
+        # listing is already known to be low — otherwise a popular low-stock
+        # item would spam the farmer with a duplicate alert per sale.
+        if new_quantity < LOW_STOCK_THRESHOLD <= old_quantity:
+            try:
+                notification_service.create_notification(
+                    db,
+                    notification_in=NotificationCreate(
+                        user_id=db_product.seller_id,
+                        title="Low Stock Alert",
+                        message=f"'{db_product.product_name}' is running low — only {new_quantity:g} left.",
+                        is_read=False
+                    )
+                )
+            except Exception:
+                pass
 
         db_items.append(
             OrderItem(

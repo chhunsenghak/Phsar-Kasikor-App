@@ -38,6 +38,18 @@ class NotificationApi {
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }
 
+  static Future<void> registerDevice(String token, String fcmToken, {String? platform}) async {
+    final response = await http.post(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/notifications/register-device'),
+      headers: BaseApi.getHeaders(token, json: true),
+      body: jsonEncode({
+        'fcm_token': fcmToken,
+        'platform': platform,
+      }),
+    );
+    BaseApi.handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> deleteNotification(String token, String notificationId) async {
     final response = await http.delete(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/notifications/$notificationId'),

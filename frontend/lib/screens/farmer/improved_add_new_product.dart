@@ -8,6 +8,7 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../services/api/upload_api.dart';
 
 class ImprovedAddNewProductScreen extends StatefulWidget {
@@ -76,9 +77,8 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
     } catch (e) {
       debugPrint('Error picking image: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick image: $e')),
-      );
+      final state = Provider.of<AppState>(context, listen: false);
+      AppSnackBar.error(context, state.translate('failed_pick_image', arguments: {'error': e.toString()}));
     }
   }
 
@@ -114,9 +114,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
         } catch (e) {
           debugPrint('Image upload failed: $e');
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Image upload failed: $e. Saving product.')),
-          );
+          AppSnackBar.error(context, state.translate('image_upload_failed_saving', arguments: {'error': e.toString()}));
         }
       }
 
@@ -269,6 +267,15 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                color: AppColors.surfaceContainerLow,
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.image_not_supported_rounded,
+                                  color: AppColors.outline,
+                                  size: 40,
+                                ),
+                              ),
                             ),
                             Container(
                               color: Colors.black38,

@@ -6,6 +6,7 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
+import '../../widgets/app_snackbar.dart';
 import 'forum_thread_detail.dart';
 
 class CommunityPortalScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
   }
 
   void _showNewPostSheet(BuildContext context) {
+    final state = Provider.of<AppState>(context, listen: false);
     final titleController = TextEditingController();
     final contentController = TextEditingController();
 
@@ -53,7 +55,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Create Community Post',
+                      state.translate('create_community_post'),
                       style: GoogleFonts.inter(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -68,13 +70,13 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
                 ),
                 const SizedBox(height: 16),
                 CustomInput(
-                  label: 'Title',
-                  hintText: 'e.g. Tomato Leaf Blight Solution',
+                  label: state.translate('post_title_label'),
+                  hintText: state.translate('post_title_hint'),
                   controller: titleController,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Content',
+                  state.translate('post_content_label'),
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -86,7 +88,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
                   controller: contentController,
                   maxLines: 4,
                   decoration: InputDecoration(
-                    hintText: 'Share your questions, guides, or insights with other farmers...',
+                    hintText: state.translate('post_content_hint'),
                     filled: true,
                     fillColor: AppColors.surfaceContainerLow,
                     border: OutlineInputBorder(
@@ -97,18 +99,16 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
                 ),
                 const SizedBox(height: 24),
                 CustomButton(
-                  text: 'Publish Post',
+                  text: state.translate('publish_post'),
                   icon: Icons.send_rounded,
                   onPressed: () {
                     if (titleController.text.isNotEmpty && contentController.text.isNotEmpty) {
-                      Provider.of<AppState>(context, listen: false).createPost(
+                      state.createPost(
                         titleController.text,
                         contentController.text,
                       );
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Post published successfully!')),
-                      );
+                      AppSnackBar.success(context, state.translate('post_published_success'));
                     }
                   },
                 ),
@@ -152,6 +152,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final state = Provider.of<AppState>(context, listen: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -163,7 +164,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Community Portal',
+                  state.translate('community_portal_title'),
                   style: GoogleFonts.inter(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -172,7 +173,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Learn and share knowledge with local producers',
+                  state.translate('community_portal_subtitle'),
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: AppColors.onSurfaceVariant,
@@ -314,7 +315,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
               onPressed: () => state.likePost(post.id),
               icon: const Icon(Icons.thumb_up_alt_outlined, size: 18, color: AppColors.primary),
               label: Text(
-                '${post.likes} Likes',
+                state.translate('likes_count', arguments: {'count': post.likes.toString()}),
                 style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w600),
               ),
             ),
@@ -322,7 +323,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
             const Icon(Icons.comment_outlined, size: 18, color: AppColors.outline),
             const SizedBox(width: 6),
             Text(
-              '${post.comments.length} Comments',
+              state.translate('comments_count', arguments: {'count': post.comments.length.toString()}),
               style: GoogleFonts.inter(color: AppColors.onSurfaceVariant, fontSize: 14),
             ),
           ],
@@ -389,7 +390,7 @@ class _CommunityPortalScreenState extends State<CommunityPortalScreen> {
                 controller: _commentControllers[post.id],
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Add a comment...',
+                  hintText: state.translate('add_comment_hint'),
                   hintStyle: GoogleFonts.inter(color: AppColors.outline),
                   filled: true,
                   fillColor: AppColors.surfaceContainerLowest,

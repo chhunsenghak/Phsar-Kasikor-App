@@ -5,6 +5,7 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/app_snackbar.dart';
 import 'checkout_screen.dart';
 
 class BuyerNegotiationScreen extends StatefulWidget {
@@ -20,6 +21,8 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
   final _priceController = TextEditingController();
   final _qtyController = TextEditingController();
   bool _isFirstLoad = true;
+  bool _isSubmitting = false;
+  bool _isWithdrawing = false;
 
   @override
   void dispose() {
@@ -32,14 +35,19 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
     final product = widget.product;
+    final String? myId = state.userProfile?['id']?.toString();
 
-    // Retrieve active negotiation if it exists
+    // Retrieve this buyer's active negotiation on this product, if any —
+    // matched by real buyer id, not a display name (a real logged-in buyer
+    // never carries the old mock persona's name).
     final activeBid = state.negotiations.firstWhere(
-      (n) => n.product.id == product.id && n.buyerName == 'Kosal Pich',
+      (n) => n.product.id == product.id && n.buyerId == myId,
       orElse: () => BidOffer(
         id: '',
         product: product,
-        buyerName: 'Kosal Pich',
+        buyerName: state.userName,
+        buyerId: myId,
+        sellerId: product.sellerId,
         offeredPrice: product.price * 0.90, // Default to 10% lower
         quantity: 50.0,
         status: 'none',
@@ -63,7 +71,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Negotiate: ${product.name}',
+          state.translate('negotiate_prefix', arguments: {'name': product.name}),
           style: GoogleFonts.inter(
             color: AppColors.onSurface,
             fontWeight: FontWeight.bold,
@@ -81,20 +89,22 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
             const SizedBox(height: 20),
 
             // Negotiation Timeline / Messages
-            _buildNegotiationHistory(activeBid),
+            _buildNegotiationHistory(state, activeBid),
             const SizedBox(height: 20),
 
             // Bid Inputs Card
             _buildOfferDetails(state, product, activeBid),
             const SizedBox(height: 24),
 
-            // Prototype Simulation Box (Helper tool for reviewers)
-            if (activeBid.status == 'pending') ...[
-              _buildSimulator(state, activeBid),
+            // Only the farmer can accept/decline a real proposal (enforced
+            // server-side too) — the buyer's only actions here are to keep
+            // adjusting their offer above, or withdraw it entirely below.
+            if (activeBid.status == 'pending' && activeBid.id.isNotEmpty) ...[
+              _buildAwaitingResponse(state, activeBid),
             ],
 
             if (activeBid.status == 'accepted') ...[
-              _buildCheckoutButton(context, product, activeBid),
+              _buildCheckoutButton(context, state, product, activeBid),
             ]
           ],
         ),
@@ -132,12 +142,12 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
     );
   }
 
-  Widget _buildNegotiationHistory(BidOffer activeBid) {
+  Widget _buildNegotiationHistory(AppState state, BidOffer activeBid) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Negotiation History',
+          state.translate('negotiation_history'),
           style: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -156,7 +166,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
           child: activeBid.status == 'none'
               ? Center(
                   child: Text(
-                    'No offers placed yet. Fill fields below to start.',
+                    state.translate('no_offers_yet'),
                     style: GoogleFonts.inter(color: AppColors.outline, fontSize: 13),
                   ),
                 )
@@ -206,7 +216,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Your Offer details',
+          state.translate('your_offer_details'),
           style: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -225,7 +235,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
                       controller: _priceController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
-                        labelText: product.currency == 'KHR' ? 'Offered Price (៛)' : 'Offered Price (\$)',
+                        labelText: product.currency == 'KHR' ? state.translate('offered_price_khr') : state.translate('offered_price_usd'),
                         labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
                         suffixText: '/${product.unit}',
                         border: const OutlineInputBorder(),
@@ -238,7 +248,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
                       controller: _qtyController,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        labelText: 'Quantity',
+                        labelText: state.translate('quantity'),
                         labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
                         suffixText: product.unit,
                         border: const OutlineInputBorder(),
@@ -255,7 +265,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Status:',
+                      '${state.translate('status')}:',
                       style: GoogleFonts.inter(fontWeight: FontWeight.bold),
                     ),
                     Container(
@@ -280,13 +290,22 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
 
               // Action Button
               CustomButton(
-                text: activeBid.status == 'none' ? 'Submit Offer' : 'Update Bid Offer',
+                text: activeBid.status == 'none' ? state.translate('submit_offer') : state.translate('update_bid_offer'),
                 icon: Icons.send_rounded,
-                onPressed: () {
-                  final price = double.tryParse(_priceController.text) ?? product.price;
-                  final qty = double.tryParse(_qtyController.text) ?? 50.0;
-                  state.placeBid(product, price, qty);
-                },
+                isLoading: _isSubmitting,
+                onPressed: _isSubmitting
+                    ? null
+                    : () async {
+                        final price = double.tryParse(_priceController.text) ?? product.price;
+                        final qty = double.tryParse(_qtyController.text) ?? 50.0;
+                        setState(() => _isSubmitting = true);
+                        final error = await state.placeBid(product, price, qty);
+                        if (!mounted) return;
+                        setState(() => _isSubmitting = false);
+                        if (error != null) {
+                          AppSnackBar.error(context, friendlyContractErrorMessage(state, error));
+                        }
+                      },
               ),
             ],
           ),
@@ -295,7 +314,7 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
     );
   }
 
-  Widget _buildSimulator(AppState state, BidOffer activeBid) {
+  Widget _buildAwaitingResponse(AppState state, BidOffer activeBid) {
     return CustomCard(
       backgroundColor: AppColors.secondaryContainer.withValues(alpha: 0.3),
       borderSide: const BorderSide(color: AppColors.primary, width: 1),
@@ -303,53 +322,47 @@ class _BuyerNegotiationScreenState extends State<BuyerNegotiationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'PROTOTYPE INTERACTIVE SIMULATOR',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.onSecondaryContainer,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Simulate the farmer\'s response to your bid. Choose an action:',
-            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface),
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                  onPressed: () {
-                    state.acceptBid(activeBid.id);
-                  },
-                  child: Text(state.translate('accept'), style: const TextStyle(color: Colors.white)),
-                ),
-              ),
+              const Icon(Icons.hourglass_top_rounded, size: 16, color: AppColors.onSecondaryContainer),
               const SizedBox(width: 8),
               Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.tertiary),
-                  onPressed: () {
-                    final counterPrice = activeBid.offeredPrice * 1.05; // 5% bump
-                    state.counterOffer(activeBid.id, counterPrice);
-                    _priceController.text = counterPrice.toStringAsFixed(2);
-                  },
-                  child: Text(state.translate('counter_offer'), style: const TextStyle(color: Colors.white)),
+                child: Text(
+                  state.translate('awaiting_farmer_response'),
+                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSecondaryContainer),
                 ),
               ),
             ],
-          )
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: CustomButton.secondary(
+              text: state.translate('withdraw_offer'),
+              isLoading: _isWithdrawing,
+              onPressed: _isWithdrawing
+                  ? null
+                  : () async {
+                      setState(() => _isWithdrawing = true);
+                      final error = await state.rejectBid(activeBid.id);
+                      if (!mounted) return;
+                      setState(() => _isWithdrawing = false);
+                      if (error != null) {
+                        AppSnackBar.error(context, friendlyContractErrorMessage(state, error));
+                        return;
+                      }
+                      AppSnackBar.success(context, state.translate('offer_withdrawn_msg'));
+                    },
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCheckoutButton(BuildContext context, MarketProduct product, BidOffer activeBid) {
+  Widget _buildCheckoutButton(BuildContext context, AppState state, MarketProduct product, BidOffer activeBid) {
     return CustomButton(
-      text: 'Proceed to Checkout',
+      text: state.translate('proceed_checkout'),
       icon: Icons.shopping_cart_checkout_rounded,
       backgroundColor: AppColors.primary,
       onPressed: () {

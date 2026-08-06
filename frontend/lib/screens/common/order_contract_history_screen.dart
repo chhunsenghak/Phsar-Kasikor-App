@@ -5,10 +5,15 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/custom_input.dart';
 import '../../services/api/order_api.dart';
+import '../../services/api/review_api.dart';
+import '../../services/api/dispute_api.dart';
 import '../buyer/khqr_checkout.dart';
 import '../buyer/order_tracking.dart';
+import 'chat_thread_screen.dart';
 import '../../services/pdf_generator_service.dart';
+import '../../widgets/app_snackbar.dart';
 
 class OrderContractHistoryScreen extends StatefulWidget {
   final int initialTab;
@@ -78,27 +83,35 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
       );
       await _loadOrders();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Order status successfully updated to $nextStatus'),
+        AppSnackBar.success(
+          context,
+          state.translate(
+            'order_status_success_msg',
+            arguments: {'status': nextStatus},
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        AppSnackBar.error(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update status: $e')));
+          state.translate(
+            'failed_update_status',
+            arguments: {'error': e.toString()},
+          ),
+        );
       }
     }
   }
 
   String _formatCurrency(num amount, [String currency = 'USD']) {
     if (currency == 'KHR') {
-      final String val = amount.toStringAsFixed(0).replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-        (Match m) => '${m[1]},',
-      );
+      final String val = amount
+          .toStringAsFixed(0)
+          .replaceAllMapped(
+            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+            (Match m) => '${m[1]},',
+          );
       return '$val ៛';
     }
     final parts = amount.toStringAsFixed(2).split('.');
@@ -139,25 +152,28 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
         }
       }
 
-      cartItems.add(CartItem(
-        quantity: qty,
-        // Price the line at the rate actually recorded on the order, not the
-        // listing's current price, which may have changed since.
-        product: MarketProduct(
-          id: known?.id ?? (item['product_id']?.toString() ?? ''),
-          name: known?.name ?? state.translate('crop_listing'),
-          category: known?.category ?? 'Grains',
-          price: rate,
-          unit: known?.unit ?? 'kg',
-          currency: orderCurrency,
+      cartItems.add(
+        CartItem(
           quantity: qty,
-          farmerName: known?.farmerName ?? state.translate('registered_seller'),
-          location: known?.location ?? '',
-          description: known?.description ?? '',
-          imageUrl: known?.imageUrl ?? '',
-          sellerId: order['seller_id']?.toString(),
+          // Price the line at the rate actually recorded on the order, not the
+          // listing's current price, which may have changed since.
+          product: MarketProduct(
+            id: known?.id ?? (item['product_id']?.toString() ?? ''),
+            name: known?.name ?? state.translate('crop_listing'),
+            category: known?.category ?? 'Grains',
+            price: rate,
+            unit: known?.unit ?? 'kg',
+            currency: orderCurrency,
+            quantity: qty,
+            farmerName:
+                known?.farmerName ?? state.translate('registered_seller'),
+            location: known?.location ?? '',
+            description: known?.description ?? '',
+            imageUrl: known?.imageUrl ?? '',
+            sellerId: order['seller_id']?.toString(),
+          ),
         ),
-      ));
+      );
     }
 
     // One stored order is one group, whatever its line items look like.
@@ -179,6 +195,38 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     );
   }
 
+  /// Cambodia local date + time (e.g. "2026-08-04 05:33 PM") for the order
+  /// footer. `created_at` comes back from the backend as a naive UTC
+  /// timestamp with no offset — calling `.toLocal()` on that is a no-op, so
+  /// it would silently display the raw UTC value mislabeled as local time.
+  /// This mirrors the UTC+7 conversion NotificationStateMixin already uses
+  /// for the same reason.
+  String _orderDateTimeText(AppState state, Map<String, dynamic> order) {
+    final raw = order['created_at']?.toString();
+    if (raw == null) return state.translate('today_label');
+    try {
+      String cleaned = raw.trim().replaceAll(' ', 'T');
+      if (!cleaned.endsWith('Z') &&
+          !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(cleaned)) {
+        cleaned += 'Z';
+      }
+      final dtCambodia = DateTime.parse(
+        cleaned,
+      ).toUtc().add(const Duration(hours: 7));
+      final datePart =
+          '${dtCambodia.year.toString().padLeft(4, '0')}-${dtCambodia.month.toString().padLeft(2, '0')}-${dtCambodia.day.toString().padLeft(2, '0')}';
+      int hour = dtCambodia.hour;
+      final minute = dtCambodia.minute.toString().padLeft(2, '0');
+      final ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12;
+      if (hour == 0) hour = 12;
+      final hourStr = hour.toString().padLeft(2, '0');
+      return '$datePart $hourStr:$minute $ampm';
+    } catch (_) {
+      return raw.split('T').first;
+    }
+  }
+
   String _translateUnit(AppState state, String? rawUnit) {
     if (rawUnit == null || rawUnit.isEmpty) return '';
     final u = rawUnit.toLowerCase().replaceAll('s', '');
@@ -195,13 +243,18 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     IconData icon;
     String textKey;
 
-    if (s == 'accepted' || s == 'paid' || s == 'completed') {
+    if (s == 'accepted' ||
+        s == 'paid' ||
+        s == 'completed' ||
+        s == 'delivered') {
       bg = AppColors.primary.withValues(alpha: 0.12);
       fg = AppColors.primary;
       icon = Icons.check_circle_rounded;
       textKey = s == 'accepted'
           ? 'status_accepted'
-          : (s == 'paid' ? 'status_paid' : 'status_completed');
+          : (s == 'paid'
+                ? 'status_paid'
+                : (s == 'delivered' ? 'status_delivered' : 'status_completed'));
     } else if (s == 'rejected' || s == 'cancelled') {
       bg = AppColors.error.withValues(alpha: 0.12);
       fg = AppColors.error;
@@ -212,6 +265,18 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
       fg = Colors.blue.shade700;
       icon = Icons.swap_horizontal_circle_rounded;
       textKey = 'status_countered';
+    } else if (s == 'confirmed' || s == 'shipped') {
+      // Order-only mid-fulfillment states — CONFIRMED (farmer is packaging)
+      // and SHIPPED (in transit / ready for pickup) previously fell through
+      // to the "else" branch below and rendered as a generic amber
+      // "PENDING" badge, so a fully-shipped order looked identical to one
+      // that had just been placed.
+      bg = Colors.blue.withValues(alpha: 0.12);
+      fg = Colors.blue.shade700;
+      icon = s == 'shipped'
+          ? Icons.local_shipping_rounded
+          : Icons.inventory_2_rounded;
+      textKey = s == 'shipped' ? 'status_shipped' : 'status_confirmed';
     } else {
       bg = Colors.amber.withValues(alpha: 0.15);
       fg = Colors.amber.shade900;
@@ -441,6 +506,70 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
               ),
               const SizedBox(height: 14),
 
+              // Delivery window: what makes this a *contract* rather than a
+              // plain sale — a committed future date range for a crop that's
+              // still growing, not something exchanged today. Absent for
+              // local/offline negotiations that never became a real backend
+              // contract yet.
+              if (contract.startDate != null && contract.endDate != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryContainer.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.event_repeat_rounded,
+                        size: 18,
+                        color: AppColors.onSecondaryContainer,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              state.translate('expected_delivery'),
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: AppColors.onSecondaryContainer,
+                              ),
+                            ),
+                            Text(
+                              state.translate(
+                                'delivery_window',
+                                arguments: {
+                                  'start': contract.startDate!
+                                      .toIso8601String()
+                                      .split('T')
+                                      .first,
+                                  'end': contract.endDate!
+                                      .toIso8601String()
+                                      .split('T')
+                                      .first,
+                                },
+                              ),
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: AppColors.onSecondaryContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+
               // Metrics Row: Quantity & Rate Chips
               Row(
                 children: [
@@ -531,28 +660,6 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // Tap hint
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    state.translate('tap_view_details'),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 10,
-                    color: AppColors.primary,
-                  ),
-                ],
-              ),
             ],
           ),
         );
@@ -597,8 +704,53 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
         final double total = (order['total_amount'] as num?)?.toDouble() ?? 0.0;
         final String status = order['order_status'] ?? 'PENDING';
         final String pStatus = order['payment_status'] ?? 'UNPAID';
+        final bool isPaid = pStatus == 'PAID';
         final state = Provider.of<AppState>(context, listen: false);
         final String currency = resolveOrderCurrency(order, state.products);
+        final items = order['items'] as List<dynamic>? ?? [];
+        final MarketProduct firstProduct = items.isEmpty
+            ? MarketProduct(
+                id: '',
+                name: state.translate('crop_listing'),
+                category: 'Grains',
+                price: 1.0,
+                unit: 'kg',
+                quantity: 0.0,
+                farmerName: state.translate('verified_farmer_fallback'),
+                location: state.translate('cambodia_fallback'),
+                description: '',
+                imageUrl: '',
+              )
+            : state.products.firstWhere(
+                (p) => p.id == items.first['product_id'],
+                orElse: () => MarketProduct(
+                  id: '',
+                  name: state.translate('crop_listing'),
+                  category: 'Grains',
+                  price: 1.0,
+                  unit: 'kg',
+                  quantity: 0.0,
+                  farmerName: state.translate('verified_farmer_fallback'),
+                  location: state.translate('cambodia_fallback'),
+                  description: '',
+                  imageUrl: '',
+                ),
+              );
+
+        final bool isFarmerView = state.currentRole == 'farmer';
+        final String counterpartyName = isFarmerView
+            ? (order['buyer_name']?.toString().isNotEmpty == true
+                  ? order['buyer_name'].toString()
+                  : state.translate('registered_buyer'))
+            : (order['seller_name']?.toString().isNotEmpty == true
+                  ? order['seller_name'].toString()
+                  : firstProduct.farmerName);
+        final Widget? footerFlag = _buildOrderFooterFlag(
+          state,
+          order,
+          status,
+          isPaid,
+        );
 
         return CustomCard(
           padding: const EdgeInsets.all(18),
@@ -642,93 +794,128 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
               const Divider(height: 1),
               const SizedBox(height: 14),
 
-              // Metrics Row: Payment Status & Total
+              // Product summary row: what was actually ordered
               Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            state.translate('payment_status_label'),
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: AppColors.outline,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            state.translate('status_${pStatus.toLowerCase()}'),
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: pStatus == 'PAID'
-                                  ? AppColors.primary
-                                  : AppColors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.eco_rounded,
+                      size: 22,
+                      color: Colors.teal,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            state.translate('total_payable'),
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: AppColors.primary,
-                            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          items.length > 1
+                              ? '${firstProduct.name} +${items.length - 1}'
+                              : firstProduct.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: AppColors.onSurface,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _formatCurrency(total, currency),
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: AppColors.primary,
-                            ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          state.translate(
+                            'items_count',
+                            arguments: {'count': items.length.toString()},
                           ),
-                        ],
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Counterparty row: who is on the other side of this order —
+              // the buyer's name for a farmer viewing incoming orders, or the
+              // seller's for a buyer viewing their own purchases. Without this
+              // the card gave no way to tell orders apart other than the
+              // order code, which nobody can recognize at a glance.
+              Row(
+                children: [
+                  Icon(
+                    isFarmerView
+                        ? Icons.person_outline_rounded
+                        : Icons.storefront_outlined,
+                    size: 14,
+                    color: AppColors.outline,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${state.translate(isFarmerView ? 'buyer' : 'seller')}: $counterpartyName',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.onSurfaceVariant,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // Tap hint
+              // Status flag: an "Unpaid" warning or the farmer's next
+              // fulfillment step, given its own row so it never has to share
+              // space with the date or the total below.
+              if (footerFlag != null) ...[
+                footerFlag,
+                const SizedBox(height: 10),
+              ],
+
+              // Footer row: date/time on the left, total payable on the
+              // right — two columns instead of one, so the amount someone
+              // actually scans for lands on the side the eye finishes on.
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    state.translate('tap_view_details'),
+                    _orderDateTimeText(state, order),
                     style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+                      fontSize: 11,
+                      color: AppColors.outline,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 10,
-                    color: AppColors.primary,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        state.translate('total_payable'),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppColors.outline,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatCurrency(total, currency),
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -739,17 +926,127 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     );
   }
 
+  /// The one right-hand indicator on an order card: an "Unpaid" warning when
+  /// payment is actually overdue (KHQR orders only — COD is unpaid by design
+  /// until collection), or the farmer's next fulfillment step when one is
+  /// ready. Returns null when neither applies, so the card can skip the row
+  /// entirely instead of reserving empty space for it.
+  Widget? _buildOrderFooterFlag(
+    AppState state,
+    Map<String, dynamic> order,
+    String status,
+    bool isPaid,
+  ) {
+    final bool isCod = (order['payment_method'] ?? 'KHQR') == 'COD';
+    final bool needsPayment = !isPaid && !isCod;
+
+    if (needsPayment) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.schedule_rounded,
+              size: 12,
+              color: Colors.amber.shade900,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              state.translate('status_unpaid'),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.amber.shade900,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String? nextAction = _farmerNextActionLabel(
+      state,
+      order,
+      status,
+      isPaid,
+    );
+    if (nextAction != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          state.translate(
+            'next_action_label',
+            arguments: {'action': nextAction},
+          ),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+      );
+    }
+
+    return null;
+  }
+
+  /// What the farmer still needs to do to move this order forward, or null
+  /// if nothing is actionable (wrong role, unpaid, or already at rest).
+  String? _farmerNextActionLabel(
+    AppState state,
+    Map<String, dynamic> order,
+    String status,
+    bool isPaid,
+  ) {
+    if (state.currentRole != 'farmer' || !isPaid) return null;
+    final bool isPickup = (order['delivery_method'] ?? 'DELIVERY') == 'PICKUP';
+    switch (status) {
+      case 'PLACED':
+        return state.translate('mark_packaging');
+      case 'CONFIRMED':
+        return isPickup
+            ? state.translate('mark_ready_pickup')
+            : state.translate('ship_order');
+      case 'SHIPPED':
+        return isPickup
+            ? state.translate('mark_collected')
+            : state.translate('mark_delivered');
+      default:
+        return null;
+    }
+  }
+
   void _showContractDetailsSheet(
     BuildContext context,
     AppState state,
     BidOffer contract,
   ) {
+    final bool isFarmerParty = contract.sellerId != null &&
+        contract.sellerId == state.userProfile?['id']?.toString();
+    final bool isBuyerParty = contract.buyerId != null &&
+        contract.buyerId == state.userProfile?['id']?.toString();
+    // 'pending' covers the backend's DRAFT status — the only stage where
+    // accept/decline/withdraw are meaningful; ACTIVE/TERMINATED are already
+    // resolved.
+    final bool isPending = contract.status == 'pending';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
+        bool isProcessing = false;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Container(
           decoration: const BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -858,7 +1155,10 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                     ),
                   ),
                   Text(
-                    _formatCurrency(contract.offeredPrice * contract.quantity, contract.product.currency),
+                    _formatCurrency(
+                      contract.offeredPrice * contract.quantity,
+                      contract.product.currency,
+                    ),
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -873,16 +1173,182 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                 currency: contract.product.currency,
               ),
               const SizedBox(height: 24),
+
+              if (isPending && isFarmerParty) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomButton.secondary(
+                        text: state.translate('decline_agreement'),
+                        onPressed: isProcessing
+                            ? null
+                            : () async {
+                                setSheetState(() => isProcessing = true);
+                                final error = await state.rejectBid(contract.id);
+                                if (error != null) {
+                                  setSheetState(() => isProcessing = false);
+                                  if (!context.mounted) return;
+                                  AppSnackBar.error(context, friendlyContractErrorMessage(state, error));
+                                  return;
+                                }
+                                if (!context.mounted) return;
+                                Navigator.pop(context);
+                                AppSnackBar.success(context, state.translate('contract_declined_msg'));
+                              },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CustomButton(
+                        text: state.translate('accept_agreement'),
+                        backgroundColor: AppColors.primary,
+                        isLoading: isProcessing,
+                        onPressed: isProcessing
+                            ? null
+                            : () async {
+                                setSheetState(() => isProcessing = true);
+                                final error = await state.acceptBid(contract.id);
+                                if (error != null) {
+                                  setSheetState(() => isProcessing = false);
+                                  if (!context.mounted) return;
+                                  AppSnackBar.error(context, friendlyContractErrorMessage(state, error));
+                                  return;
+                                }
+                                if (!context.mounted) return;
+                                Navigator.pop(context);
+                                AppSnackBar.success(context, state.translate('contract_accepted_msg'));
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton(
+                    onPressed: isProcessing
+                        ? null
+                        : () => _showCounterOfferDialog(context, state, contract, setSheetState),
+                    child: Text(
+                      state.translate('counter_offer'),
+                      style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ] else if (isPending && isBuyerParty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryContainer.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.hourglass_top_rounded, size: 16, color: AppColors.onSecondaryContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          state.translate('awaiting_farmer_response'),
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSecondaryContainer),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: CustomButton.secondary(
+                    text: state.translate('withdraw_offer'),
+                    isLoading: isProcessing,
+                    onPressed: isProcessing
+                        ? null
+                        : () async {
+                            setSheetState(() => isProcessing = true);
+                            final error = await state.rejectBid(contract.id);
+                            if (error != null) {
+                              setSheetState(() => isProcessing = false);
+                              if (!context.mounted) return;
+                              AppSnackBar.error(context, friendlyContractErrorMessage(state, error));
+                              return;
+                            }
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            AppSnackBar.success(context, state.translate('offer_withdrawn_msg'));
+                          },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               SizedBox(
                 width: double.infinity,
-                child: CustomButton(
+                child: CustomButton.secondary(
                   text: state.translate('download_agreement'),
-                  backgroundColor: AppColors.primary,
                   onPressed: () {
                     Navigator.pop(context);
                     _handleContractDownload(context, state, contract);
                   },
                 ),
+              ),
+            ],
+          ),
+        ),
+        );
+      },
+    );
+  }
+
+  /// Lets the farmer re-propose a different price on a still-DRAFT
+  /// agreement instead of only being able to accept the buyer's exact
+  /// number or reject it outright.
+  void _showCounterOfferDialog(
+    BuildContext sheetContext,
+    AppState state,
+    BidOffer contract,
+    StateSetter setSheetState,
+  ) {
+    final priceController = TextEditingController(text: contract.offeredPrice.toStringAsFixed(2));
+
+    showDialog(
+      context: sheetContext,
+      builder: (dialogContext) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(state.translate('counter_offer'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            content: CustomInput(
+              label: '',
+              hintText: '0.00',
+              controller: priceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(state.translate('cancel')),
+              ),
+              TextButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final newPrice = double.tryParse(priceController.text);
+                        if (newPrice == null || newPrice <= 0) return;
+                        setDialogState(() => isSubmitting = true);
+                        final error = await state.counterOffer(contract.id, newPrice);
+                        if (!dialogContext.mounted) return;
+                        if (error != null) {
+                          setDialogState(() => isSubmitting = false);
+                          AppSnackBar.error(dialogContext, friendlyContractErrorMessage(state, error));
+                          return;
+                        }
+                        Navigator.pop(dialogContext);
+                        if (!sheetContext.mounted) return;
+                        Navigator.pop(sheetContext);
+                      },
+                child: Text(state.translate('submit_offer')),
               ),
             ],
           ),
@@ -908,6 +1374,14 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     final double deliveryFee = isPickup ? 0.0 : deliveryFeeFor(currency);
     final double subtotal = totalAmount - deliveryFee;
     final items = order['items'] as List<dynamic>? ?? [];
+    final bool isFarmerView = state.currentRole == 'farmer';
+    final String counterpartyName = isFarmerView
+        ? (order['buyer_name']?.toString().isNotEmpty == true
+              ? order['buyer_name'].toString()
+              : state.translate('registered_buyer'))
+        : (order['seller_name']?.toString().isNotEmpty == true
+              ? order['seller_name'].toString()
+              : state.translate('registered_seller'));
 
     showModalBottomSheet(
       context: context,
@@ -967,11 +1441,38 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                 ],
               ),
               const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: _buildInfoRow(
+                      state.translate(isFarmerView ? 'buyer' : 'seller'),
+                      counterpartyName,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20, color: AppColors.primary),
+                    tooltip: state.translate('message_button'),
+                    onPressed: () {
+                      final String? otherUserId = (isFarmerView ? order['buyer_id'] : order['seller_id'])?.toString();
+                      if (otherUserId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatThreadScreen(
+                            otherUserId: otherUserId,
+                            otherUserName: counterpartyName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               _buildInfoRow(
                 state.translate('invoice_date'),
-                order['created_at'] != null
-                    ? order['created_at'].toString().split('T').first
-                    : 'Today',
+                _orderDateTimeText(state, order),
               ),
               const SizedBox(height: 8),
               _buildInfoRow(
@@ -1002,13 +1503,13 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                   (p) => p.id == item['product_id'],
                   orElse: () => MarketProduct(
                     id: '',
-                    name: 'Crop Listing',
+                    name: state.translate('crop_listing'),
                     category: 'Grains',
                     price: 1.0,
                     unit: 'kg',
                     quantity: 0.0,
-                    farmerName: 'Verified Farmer',
-                    location: 'Cambodia',
+                    farmerName: state.translate('verified_farmer_fallback'),
+                    location: state.translate('cambodia_fallback'),
                     description: '',
                     imageUrl: '',
                   ),
@@ -1070,7 +1571,12 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                 );
               }),
               const Divider(height: 24),
-              _buildCostSummary(state, subtotal, currency: currency, deliveryFee: deliveryFee),
+              _buildCostSummary(
+                state,
+                subtotal,
+                currency: currency,
+                deliveryFee: deliveryFee,
+              ),
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -1100,7 +1606,12 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                             MaterialPageRoute(
                               builder: (context) => KHQRCheckoutScreen(
                                 orders: [
-                                  _placedOrderFromRecord(state, order, items, totalAmount),
+                                  _placedOrderFromRecord(
+                                    state,
+                                    order,
+                                    items,
+                                    totalAmount,
+                                  ),
                                 ],
                               ),
                             ),
@@ -1115,7 +1626,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: CustomButton(
-                          text: 'Mark Packaging',
+                          text: state.translate('mark_packaging'),
                           backgroundColor: AppColors.primary,
                           onPressed: () {
                             Navigator.pop(context);
@@ -1127,7 +1638,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: CustomButton(
-                          text: 'Ship Order',
+                          text: state.translate('ship_order'),
                           backgroundColor: AppColors.primary,
                           onPressed: () {
                             Navigator.pop(context);
@@ -1139,7 +1650,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: CustomButton(
-                          text: 'Mark Delivered',
+                          text: state.translate('mark_delivered'),
                           backgroundColor: AppColors.primary,
                           onPressed: () {
                             Navigator.pop(context);
@@ -1156,24 +1667,26 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: CustomButton(
-                        text: 'Track Order',
+                        text: state.translate('track_order'),
                         backgroundColor: AppColors.primary,
                         onPressed: () {
                           Navigator.pop(context); // Close sheet
-                          String pName = 'Crop Listing';
+                          String pName = state.translate('crop_listing');
                           if (items.isNotEmpty) {
                             final firstItem = items.first;
                             final matchingProd = state.products.firstWhere(
                               (p) => p.id == firstItem['product_id'],
                               orElse: () => MarketProduct(
                                 id: '',
-                                name: 'Crop Listing',
+                                name: state.translate('crop_listing'),
                                 category: 'Grains',
                                 price: 1.0,
                                 unit: 'kg',
                                 quantity: 0.0,
-                                farmerName: 'Verified Farmer',
-                                location: 'Cambodia',
+                                farmerName: state.translate(
+                                  'verified_farmer_fallback',
+                                ),
+                                location: state.translate('cambodia_fallback'),
                                 description: '',
                                 imageUrl: '',
                               ),
@@ -1209,10 +1722,177 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                   ],
                 ],
               ),
+              if (state.currentRole == 'buyer' && order['order_status'] == 'DELIVERED') ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: CustomButton.secondary(
+                    text: state.translate('rate_this_order'),
+                    icon: Icons.star_outline_rounded,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showRateOrderDialog(context, state, order);
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.report_problem_outlined, size: 18, color: AppColors.error),
+                  label: Text(
+                    state.translate('report_a_problem'),
+                    style: GoogleFonts.inter(color: AppColors.error, fontWeight: FontWeight.w600),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showReportProblemDialog(context, state, order);
+                  },
+                ),
+              ),
             ],
           ),
         );
       },
+    );
+  }
+
+  void _showReportProblemDialog(
+    BuildContext context,
+    AppState state,
+    Map<String, dynamic> order,
+  ) {
+    final reasonController = TextEditingController();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(state.translate('report_a_problem'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          content: CustomInput(
+            label: state.translate('reason_label'),
+            hintText: state.translate('dispute_reason_hint'),
+            controller: reasonController,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(state.translate('cancel')),
+            ),
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final reason = reasonController.text.trim();
+                      if (reason.isEmpty || state.token == null) return;
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        await DisputeApi.createDispute(state.token!, order['id'].toString(), reason);
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext);
+                        AppSnackBar.success(context, state.translate('dispute_submitted_success'));
+                      } catch (e) {
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() => isSubmitting = false);
+                        final raw = e.toString().replaceFirst('Exception: ', '');
+                        final friendly = raw == 'DISPUTE_ALREADY_OPEN'
+                            ? state.translate('error_dispute_already_open')
+                            : raw;
+                        AppSnackBar.error(dialogContext, friendly);
+                      }
+                    },
+              child: Text(state.translate('submit_dispute')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRateOrderDialog(
+    BuildContext context,
+    AppState state,
+    Map<String, dynamic> order,
+  ) {
+    int rating = 5;
+    final commentController = TextEditingController();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(state.translate('rate_this_order'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(state.translate('your_rating'), style: GoogleFonts.inter(fontSize: 13)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) {
+                  final starValue = i + 1;
+                  return IconButton(
+                    onPressed: () => setDialogState(() => rating = starValue),
+                    icon: Icon(
+                      starValue <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: Colors.amber.shade700,
+                      size: 32,
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+              CustomInput(
+                label: '',
+                hintText: state.translate('comment_optional'),
+                controller: commentController,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(state.translate('cancel')),
+            ),
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (state.token == null) return;
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        await ReviewApi.createReview(
+                          state.token!,
+                          orderId: order['id'].toString(),
+                          rating: rating,
+                          comment: commentController.text.trim().isEmpty ? null : commentController.text.trim(),
+                        );
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext);
+                        AppSnackBar.success(context, state.translate('review_submitted_success'));
+                      } catch (e) {
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() => isSubmitting = false);
+                        final raw = e.toString().replaceFirst('Exception: ', '');
+                        final friendly = raw == 'ORDER_ALREADY_REVIEWED'
+                            ? state.translate('error_order_already_reviewed')
+                            : (raw == 'ORDER_NOT_DELIVERED'
+                                ? state.translate('error_order_not_delivered')
+                                : raw);
+                        AppSnackBar.error(dialogContext, friendly);
+                      }
+                    },
+              child: Text(state.translate('submit_review')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1498,7 +2178,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isSuccess ? AppColors.primary : AppColors.error,
+                      backgroundColor: isSuccess
+                          ? AppColors.primary
+                          : AppColors.error,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

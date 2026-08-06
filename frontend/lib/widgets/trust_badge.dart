@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../models/app_state.dart';
 
 class TrustBadge extends StatelessWidget {
   final String certType;
@@ -17,6 +19,8 @@ class TrustBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final state = Provider.of<AppState>(context, listen: false);
+
     Color bgColor;
     Color textColor;
     IconData icon;
@@ -27,26 +31,26 @@ class TrustBadge extends StatelessWidget {
         bgColor = const Color(0xFFE8F5E9); // light green
         textColor = const Color(0xFF2E7D32); // dark green
         icon = Icons.eco_rounded;
-        label = 'COrAA Organic';
+        label = state.translate('trust_badge_organic');
         break;
       case 'gap':
         bgColor = const Color(0xFFE3F2FD); // light blue
         textColor = const Color(0xFF1565C0); // dark blue
         icon = Icons.verified_user_rounded;
-        label = 'CamGAP';
+        label = state.translate('trust_badge_gap');
         break;
       case 'gi':
         bgColor = const Color(0xFFFFF8E1); // light gold
         textColor = const Color(0xFFF57F17); // dark gold
         icon = Icons.workspace_premium_rounded;
-        label = 'GI Specialty';
+        label = state.translate('trust_badge_gi');
         break;
       case 'general':
       default:
         bgColor = const Color(0xFFE0F2F1); // light teal
         textColor = const Color(0xFF00796B); // dark teal
         icon = Icons.check_circle_rounded;
-        label = 'Verified Farm';
+        label = state.translate('trust_badge_general');
         break;
     }
 

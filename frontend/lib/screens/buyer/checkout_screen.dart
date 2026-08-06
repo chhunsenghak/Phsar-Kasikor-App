@@ -5,6 +5,7 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../services/api/order_api.dart';
 import '../common/order_contract_history_screen.dart';
 import 'khqr_checkout.dart';
@@ -139,7 +140,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     // Cash on delivery — the orders are already placed.
     state.addNotification(
-      'Order Placed Successfully',
+      state.translate('order_placed_successfully'),
       state.translate('orders_placed_msg', arguments: {
         'count': placed.length.toString(),
       }),
@@ -182,7 +183,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    AppSnackBar.warning(context, message);
   }
 
   void _showFailureDialog(AppState state, List<String> failures) {

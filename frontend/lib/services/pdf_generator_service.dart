@@ -20,10 +20,54 @@ class PdfGeneratorService {
   }
 
   static String _cleanText(String input) {
-    if (input.isEmpty) return 'Crop Item';
-    String s = input.replaceAll('—', '-');
-    final cleaned = s.replaceAll(RegExp(r'[^\x00-\x7F]'), '').trim();
-    return cleaned.isNotEmpty ? cleaned : 'Agricultural Produce';
+    if (input.trim().isEmpty) return 'Crop Item';
+    return input.replaceAll('—', '-').trim();
+  }
+
+  /// The base PDF font (Helvetica) has no Khmer glyphs, so any Khmer text
+  /// rendered without this used to be silently stripped down to an empty
+  /// string by `_cleanText`'s old ASCII-only filter. Noto Sans Khmer is
+  /// fetched (and cached) via the `printing` package's Google Fonts helper
+  /// and registered as a font-fallback, so Latin text keeps using the default
+  /// font while Khmer glyphs render through the fallback automatically.
+  static Future<pw.ThemeData> _buildTheme() async {
+    final khmerRegular = await PdfGoogleFonts.notoSansKhmerRegular();
+    final khmerBold = await PdfGoogleFonts.notoSansKhmerBold();
+    return pw.ThemeData.withFont(
+      fontFallback: [khmerRegular, khmerBold],
+    );
+  }
+
+  /// Cambodia local date + time (12-hour clock, AM/PM) — the same UTC+7
+  /// convention used by the in-app order/notification screens, so a PDF
+  /// generated from an order never disagrees with what's shown on screen.
+  static String _formatDateTime(DateTime dateTime) {
+    final cambodia = dateTime.toUtc().add(const Duration(hours: 7));
+    final datePart =
+        '${cambodia.year.toString().padLeft(4, '0')}-${cambodia.month.toString().padLeft(2, '0')}-${cambodia.day.toString().padLeft(2, '0')}';
+    int hour = cambodia.hour;
+    final minute = cambodia.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour == 0) hour = 12;
+    final hourStr = hour.toString().padLeft(2, '0');
+    return '$datePart $hourStr:$minute $ampm';
+  }
+
+  /// Parses a `created_at` value from the backend — a naive UTC timestamp
+  /// with no offset — into Cambodia local date + time.
+  static String _formatBackendDateTime(String? raw) {
+    if (raw == null) return _formatDateTime(DateTime.now());
+    try {
+      String cleaned = raw.trim().replaceAll(' ', 'T');
+      if (!cleaned.endsWith('Z') &&
+          !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(cleaned)) {
+        cleaned += 'Z';
+      }
+      return _formatDateTime(DateTime.parse(cleaned));
+    } catch (_) {
+      return raw.split('T').first;
+    }
   }
 
   /// Generate Invoice PDF for an Order
@@ -31,7 +75,7 @@ class PdfGeneratorService {
     required Map<String, dynamic> order,
     required AppState state,
   }) async {
-    final pdf = pw.Document(theme: pw.ThemeData.base());
+    final pdf = pw.Document(theme: await _buildTheme());
 
     final orderId = (order['id']?.toString() ?? 'ORDER-0000').toUpperCase();
     final shortId = orderId.length >= 8 ? orderId.substring(0, 8) : orderId;
@@ -46,9 +90,8 @@ class PdfGeneratorService {
     final double deliveryFee = isPickup ? 0.0 : deliveryFeeFor(currency);
     final double subtotal = totalAmount - deliveryFee;
     final items = order['items'] as List<dynamic>? ?? [];
-    final String dateStr = order['created_at'] != null
-        ? order['created_at'].toString().split('T').first
-        : DateTime.now().toString().split(' ').first;
+
+    final String dateStr = _formatBackendDateTime(order['created_at']?.toString());
 
     pdf.addPage(
       pw.Page(
@@ -101,7 +144,7 @@ class PdfGeneratorService {
                         ),
                       ),
                       pw.Text(
-                        'Date: $dateStr',
+                        'Date Time: $dateStr',
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                     ],
@@ -190,7 +233,7 @@ class PdfGeneratorService {
                   2: const pw.FlexColumnWidth(1.5),
                   3: const pw.FlexColumnWidth(1.5),
                 },
-                headers: ['Item / Crop Description', 'Qty', 'Unit Price', 'Subtotal'],
+                headers: ['Item', 'Qty', 'Unit Price', 'Subtotal'],
                 data: items.map((item) {
                   final matchingProd = state.products.firstWhere(
                     (p) => p.id == item['product_id'],
@@ -292,12 +335,14 @@ class PdfGeneratorService {
     required BidOffer contract,
     required AppState state,
   }) async {
-    final pdf = pw.Document(theme: pw.ThemeData.base());
+    final pdf = pw.Document(theme: await _buildTheme());
 
     final agreementId = contract.id.toUpperCase();
     final shortId = agreementId.length >= 8 ? agreementId.substring(0, 8) : agreementId;
     final totalVal = contract.offeredPrice * contract.quantity;
-    final dateStr = DateTime.now().toString().split(' ').first;
+    // BidOffer carries no creation timestamp, so this reflects when the PDF
+    // itself was generated rather than when the agreement was struck.
+    final dateStr = _formatDateTime(DateTime.now());
 
     pdf.addPage(
       pw.Page(
@@ -349,7 +394,7 @@ class PdfGeneratorService {
                           fontWeight: pw.FontWeight.bold,
                         ),
                       ),
-                      pw.Text('Date: $dateStr', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text('Date Time: $dateStr', style: const pw.TextStyle(fontSize: 10)),
                     ],
                   ),
                 ],

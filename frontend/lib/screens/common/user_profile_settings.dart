@@ -10,10 +10,12 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
+import '../../services/api/auth_api.dart';
+import '../../widgets/app_snackbar.dart';
 import 'login_screen.dart';
 import '../farmer/submit_certificate_screen.dart';
 import 'order_contract_history_screen.dart';
-import '../buyer/farm_profile.dart';
+import 'disputes_screen.dart';
 
 class UserProfileSettingsScreen extends StatefulWidget {
   const UserProfileSettingsScreen({super.key});
@@ -25,6 +27,8 @@ class UserProfileSettingsScreen extends StatefulWidget {
 
 class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   final _addressFormKey = GlobalKey<FormState>();
+  bool _justVerifiedEmail = false;
+  bool _isSendingVerification = false;
 
   @override
   void initState() {
@@ -61,6 +65,12 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildProfileHeader(state),
+          if (!_justVerifiedEmail &&
+              state.userProfile?['email'] != null &&
+              state.userProfile?['is_verified'] != true) ...[
+            const SizedBox(height: 16),
+            _buildEmailVerificationCard(state),
+          ],
           const SizedBox(height: 20),
           _buildPersonalInfoCard(state),
           const SizedBox(height: 20),
@@ -80,7 +90,9 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   ImageProvider? _getAvatarImage(AppState state) {
     if (state.profileImageBytes != null) {
       return MemoryImage(state.profileImageBytes!);
-    } else if (!kIsWeb && state.profileImagePath != null && state.profileImagePath!.isNotEmpty) {
+    } else if (!kIsWeb &&
+        state.profileImagePath != null &&
+        state.profileImagePath!.isNotEmpty) {
       return FileImage(File(state.profileImagePath!));
     } else if (state.userProfile?['profile_image_url'] != null &&
         (state.userProfile!['profile_image_url'] as String).isNotEmpty) {
@@ -104,7 +116,10 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
             child: Wrap(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
+                  leading: const Icon(
+                    Icons.photo_library_rounded,
+                    color: AppColors.primary,
+                  ),
                   title: Text(state.translate('choose_from_gallery')),
                   onTap: () async {
                     Navigator.pop(ctx);
@@ -127,7 +142,10 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt_rounded, color: AppColors.primary),
+                  leading: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: AppColors.primary,
+                  ),
                   title: Text(state.translate('take_photo')),
                   onTap: () async {
                     Navigator.pop(ctx);
@@ -154,6 +172,126 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildEmailVerificationCard(AppState state) {
+    return CustomCard(
+      padding: const EdgeInsets.all(16),
+      backgroundColor: Colors.amber.withValues(alpha: 0.1),
+      child: Row(
+        children: [
+          Icon(Icons.mark_email_unread_outlined, color: Colors.amber.shade900),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  state.translate('verify_email_title'),
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  state.translate('verify_email_desc'),
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IntrinsicWidth(
+            // CustomButton always sizes itself with width: double.infinity,
+            // which needs a bounded-width parent (e.g. a Column) to resolve.
+            // A bare Row gives unbounded width, so wrap it to constrain it.
+            child: CustomButton(
+              text: state.translate('verify_button'),
+              height: 36,
+              isLoading: _isSendingVerification,
+              onPressed: _isSendingVerification ? null : () => _startEmailVerification(state),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startEmailVerification(AppState state) async {
+    if (state.token == null) return;
+    setState(() => _isSendingVerification = true);
+    try {
+      await AuthApi.sendVerificationEmail(state.token!);
+      if (!mounted) return;
+      AppSnackBar.success(context, state.translate('verification_email_sent'));
+      _showVerifyCodeDialog(state);
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackBar.error(context, e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isSendingVerification = false);
+    }
+  }
+
+  void _showVerifyCodeDialog(AppState state) {
+    final codeController = TextEditingController();
+    bool isVerifying = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(state.translate('verify_email_title'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(state.translate('enter_verification_code'), style: GoogleFonts.inter(fontSize: 13)),
+              const SizedBox(height: 12),
+              CustomInput(
+                label: '',
+                hintText: '000000',
+                controller: codeController,
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(state.translate('cancel')),
+            ),
+            TextButton(
+              onPressed: isVerifying
+                  ? null
+                  : () async {
+                      final code = codeController.text.trim();
+                      if (code.isEmpty || state.token == null) return;
+                      setDialogState(() => isVerifying = true);
+                      try {
+                        await AuthApi.verifyEmail(state.token!, code);
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext);
+                        if (!mounted) return;
+                        setState(() => _justVerifiedEmail = true);
+                        _showPremiumStatusDialog(
+                          context: context,
+                          isSuccess: true,
+                          title: state.translate('success'),
+                          message: state.translate('email_verified_success'),
+                        );
+                      } catch (e) {
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() => isVerifying = false);
+                        if (!mounted) return;
+                        AppSnackBar.error(context, e.toString().replaceFirst('Exception: ', ''));
+                      }
+                    },
+              child: Text(state.translate('verify_button')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -258,8 +396,8 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
 
   Widget _buildPersonalInfoCard(AppState state) {
     final profile = state.userProfile;
-    final String email = profile?['email']?.toString() ?? 'No email';
-    final String phone = profile?['phoneNumber']?.toString() ?? 'No phone';
+    final String email = profile?['email']?.toString() ?? state.translate('no_email');
+    final String phone = profile?['phoneNumber']?.toString() ?? state.translate('no_phone');
     final String username = profile?['username'] ?? state.userName;
 
     return CustomCard(
@@ -549,6 +687,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   }
 
   Widget _buildAddressRow(String label, dynamic value) {
+    final state = Provider.of<AppState>(context, listen: false);
     return Row(
       children: [
         SizedBox(
@@ -565,7 +704,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            value?.toString() ?? 'Not specified',
+            value?.toString() ?? state.translate('not_specified'),
             style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.bold,
@@ -862,7 +1001,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                         const SizedBox(height: 12),
                         CustomInput(
                           label: state.translate('street_no'),
-                          hintText: 'e.g. Street 105',
+                          hintText: state.translate('street_hint'),
                           controller: _streetController,
                         ),
                         const SizedBox(height: 24),
@@ -1038,7 +1177,8 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                   ],
                 ),
               ),
-              if (state.currentRole != 'buyer') ...[
+              if (state.currentRole != 'buyer' &&
+                  state.currentRole != 'farmer') ...[
                 const Divider(height: 1),
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(
@@ -1073,49 +1213,6 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) =>
                             const OrderContractHistoryScreen(isPushed: true),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-              ],
-              if (state.currentRole == 'farmer') ...[
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  leading: const Icon(
-                    Icons.storefront_rounded,
-                    color: AppColors.primary,
-                  ),
-                  title: Text(
-                    state.translate('view_farm_profile'),
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
-                  subtitle: Text(
-                    state.translate('view_farm_profile_desc'),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.outline,
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FarmProfileScreen(
-                          farmerName: state.userName,
-                          isVerifiedFarmer: true,
-                          location: 'Battambang',
-                        ),
                       ),
                     );
                   },
@@ -1180,8 +1277,9 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                   color: AppColors.outline,
                 ),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(state.translate('dispute_mock'))),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const DisputesScreen()),
                   );
                 },
               ),
@@ -1239,6 +1337,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
     required String message,
     VoidCallback? onClose,
   }) {
+    final state = Provider.of<AppState>(context, listen: false);
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -1329,7 +1428,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                               ),
                             ),
                             child: Text(
-                              isSuccess ? 'OK' : 'Close',
+                              isSuccess ? state.translate('ok') : state.translate('close'),
                               style: GoogleFonts.inter(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,

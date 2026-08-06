@@ -5,6 +5,7 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/app_snackbar.dart';
 
 class AdminVerificationDetailScreen extends StatelessWidget {
   final FarmerVerification verification;
@@ -25,7 +26,7 @@ class AdminVerificationDetailScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Certificate Review Details',
+          state.translate('cert_review_details'),
           style: GoogleFonts.inter(
             color: AppColors.onSurface,
             fontWeight: FontWeight.bold,
@@ -65,7 +66,7 @@ class AdminVerificationDetailScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Location: ${verification.location}',
+                              state.translate('location_prefix', arguments: {'location': verification.location}),
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: AppColors.onSurfaceVariant,
@@ -77,21 +78,21 @@ class AdminVerificationDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const Divider(height: 32),
-                  _buildDetailRow('Farm Name', verification.farmName),
+                  _buildDetailRow(state.translate('farm_name'), verification.farmName),
                   const SizedBox(height: 12),
-                  _buildDetailRow('Cultivated Crops', verification.cropTypes),
+                  _buildDetailRow(state.translate('cultivated_crops'), verification.cropTypes),
                   const SizedBox(height: 12),
-                  _buildDetailRow('Certification Standard', verification.certType.toUpperCase()),
+                  _buildDetailRow(state.translate('certification_standard'), verification.certType.toUpperCase()),
                   const SizedBox(height: 12),
-                  _buildDetailRow('Document File', verification.resolvedDocUrl),
+                  _buildDetailRow(state.translate('document_file'), verification.resolvedDocUrl, isImage: true),
                   const SizedBox(height: 12),
-                  _buildDetailRow('Current Status', verification.status.toUpperCase()),
+                  _buildDetailRow(state.translate('current_status'), verification.status.toUpperCase()),
                 ],
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              'Review Actions',
+              state.translate('review_actions'),
               style: GoogleFonts.inter(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
@@ -103,30 +104,26 @@ class AdminVerificationDetailScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: CustomButton(
-                    text: 'Approve & Verify',
+                    text: state.translate('approve_verify'),
                     icon: Icons.check_circle_outline_rounded,
                     onPressed: () {
                       state.approveFarmer(verification.id);
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Approved and verified ${verification.name}')),
-                      );
+                      AppSnackBar.success(context, state.translate('approved_verified_msg', arguments: {'name': verification.name}));
                     },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: CustomButton.secondary(
-                    text: 'Decline',
+                    text: state.translate('decline'),
                     icon: Icons.cancel_outlined,
                     backgroundColor: AppColors.errorContainer,
                     textColor: AppColors.onErrorContainer,
                     onPressed: () {
                       state.rejectFarmer(verification.id);
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Declined verification for ${verification.name}')),
-                      );
+                      AppSnackBar.warning(context, state.translate('declined_verification_msg', arguments: {'name': verification.name}));
                     },
                   ),
                 ),
@@ -138,7 +135,7 @@ class AdminVerificationDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, {bool isImage = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -151,7 +148,7 @@ class AdminVerificationDetailScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        if (label == 'Document File' && (value.startsWith('http') || value.startsWith('/')))
+        if (isImage && (value.startsWith('http') || value.startsWith('/')))
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.network(

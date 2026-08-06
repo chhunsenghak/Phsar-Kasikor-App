@@ -12,11 +12,13 @@ import '../buyer/community_portal.dart';
 import 'user_profile_settings.dart';
 import 'order_contract_history_screen.dart';
 import '../farmer/farmer_dashboard.dart';
+import '../farmer/product_hub_screen.dart';
 import '../cooperative/cooperative_dashboard.dart';
 import '../admin/admin_dashboard_overview.dart';
 import '../admin/refined_farmer_verification_queue.dart';
 import '../admin/content_review_moderation.dart';
 import 'notification_center.dart';
+import 'chat_inbox_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -137,6 +139,20 @@ class _AppShellState extends State<AppShell> {
                   ),
               ],
             ),
+          // Messages — every role except admin, who moderates rather than trades.
+          if (role.toLowerCase() != 'admin')
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.onSurface),
+              tooltip: state.translate('messages'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ChatInboxScreen(),
+                  ),
+                );
+              },
+            ),
           // Notifications Icon Button
           Stack(
             alignment: Alignment.center,
@@ -255,16 +271,10 @@ class _AppShellState extends State<AppShell> {
           'screen': const FarmerDashboardScreen(),
         },
         {
-          'label': state.translate('prices'),
-          'icon': Icons.trending_up_outlined,
-          'activeIcon': Icons.trending_up_rounded,
-          'screen': const MarketPriceTrackerScreen(),
-        },
-        {
-          'label': state.translate('community'),
-          'icon': Icons.forum_outlined,
-          'activeIcon': Icons.forum_rounded,
-          'screen': const CommunityPortalScreen(),
+          'label': state.translate('products'),
+          'icon': Icons.storefront_outlined,
+          'activeIcon': Icons.storefront_rounded,
+          'screen': const FarmerProductHubScreen(),
         },
         {
           'label': state.translate('profile'),

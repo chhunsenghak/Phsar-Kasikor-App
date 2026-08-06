@@ -87,6 +87,26 @@ In `.env`, you can customize:
 - `DATABASE_URL`: The SQLite database filename (e.g., 
   `postgresql://postgres:1234567890@[IP_ADDRESS]/phsar_kasikor_db`)
 
+The following are optional — each feature they back degrades gracefully (falls
+back to a no-op) when left blank, so you don't need them for local dev unless
+you're testing that specific feature:
+- `FIREBASE_SERVICE_ACCOUNT_PATH`: path to a Firebase service-account JSON
+  (Firebase console → Project Settings → Service Accounts → Generate new
+  private key). Enables push notifications; without it, notifications still
+  save to the DB but nothing gets pushed to a device.
+- `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` /
+  `SMTP_FROM_EMAIL` / `SMTP_USE_TLS`: enables real email delivery for
+  password-reset and email-verification codes. For Gmail, `SMTP_PASSWORD`
+  must be an [App Password](https://myaccount.google.com/apppasswords), not
+  the account's regular login password.
+- `BAKONG_API_BASE_URL` / `BAKONG_MERCHANT_ACCOUNT_ID` / `BAKONG_MERCHANT_NAME`
+  / `BAKONG_MERCHANT_CITY`: enables real KHQR code generation for checkout —
+  this part works fully offline once the merchant fields are set, no token
+  needed. `BAKONG_BEARER_TOKEN` is separate and optional again: it only
+  enables automatic "was this paid?" verification, and it's short-lived
+  (expires and must be refreshed via the Bakong developer portal), so leaving
+  it blank just means payment confirmation stays manual.
+
 ---
 
 ## 🏃 Running the Application
@@ -148,6 +168,52 @@ If you are running the backend natively outside Docker, run the commands directl
 
 ---
 
+## 🌱 Seeding & Resetting the Database
+
+### Seed baseline data
+`app/seed.py` creates the base roles, product categories, and 4 test accounts
+(admin / farmer / buyer / cooperative — see the file for credentials) if they
+don't already exist. It's idempotent — safe to run repeatedly, it only fills
+in what's missing and updates the 4 seeded users, it never touches products,
+orders, or anything else you've created:
+```bash
+docker exec phsarkasikor_backend python -m app.seed
+```
+
+### Full reset (⚠️ destructive)
+To wipe **everything** — every product, order, user account beyond the 4
+seeded ones, all of it — and start from a clean schema:
+```bash
+# 1. Drop and recreate the schema (deletes every table)
+docker exec phsarkasikor_db psql -U postgres -d phsarkasikor -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+# 2. Rebuild all tables directly from the current models — NOT `alembic
+#    upgrade head`. The migration history has a pre-existing gap (a
+#    `contracts` migration references `users` via FK, but no migration
+#    actually creates `users` — the original schema was bootstrapped once via
+#    create_all() before that call was commented out in main.py in favor of
+#    Alembic, so replaying the full chain from empty has never actually
+#    worked). This sidesteps that broken replay entirely:
+docker exec phsarkasikor_backend python -c "from app.core.database import engine; from app.models.base import Base; import app.models; Base.metadata.create_all(bind=engine)"
+
+# 3. Sync Alembic's bookkeeping to match, without replaying the chain
+docker exec phsarkasikor_backend alembic stamp head
+
+# 4. Re-seed the 4 base accounts
+docker exec phsarkasikor_backend python -m app.seed
+```
+Note that `seed.py` doesn't re-create any product listings, so the app starts
+with zero products after this until some are added again through the API/app.
+
+> **Known issue**: the migration chain can't be replayed from an empty
+> database (see step 2 above). If you want this fixed properly instead of
+> worked around — e.g. by adding the missing `users` table creation to the
+> right point in history, or squashing everything into one clean baseline
+> migration — that's a separate, deliberate change someone should make and
+> test on a throwaway DB first, not something to do casually.
+
+---
+
 ## 🛠️ Code Compilation & Syntax Verification
 
 Although Python is interpreted and Uvicorn hot-reloads automatically, you can manually compile files to verify syntax and catch compile errors early:
@@ -178,9 +244,19 @@ Check for compilation errors across all modules:
 
 ## 🔑 Key API Endpoints
 
+The full, always-current list of endpoints — with request/response schemas
+you can try directly — is at the [Swagger docs](http://localhost:8000/docs)
+once the server is running. The table below covers only the core
+auth/account flow; everything else (products, orders, contracts, chat,
+cooperatives, reviews, disputes, payments, notifications, forum, and more)
+lives under `app/api/v1/endpoints/` as one router file per feature area, all
+mounted in `app/api/v1/api.py`.
+
 | Method | Endpoint | Description | Auth Required |
 |---|---|---|---|
 | **GET** | `/` | Welcome root route | No |
 | **POST** | `/api/v1/users/register` | Register a new user | No |
 | **POST** | `/api/v1/auth/login` | Login to retrieve JWT Access Token | No |
+| **POST** | `/api/v1/auth/forgot-password` | Request a password-reset code by email | No |
+| **POST** | `/api/v1/auth/reset-password` | Complete a password reset with the emailed code | No |
 | **GET** | `/api/v1/users/me` | Fetch profile details of logged-in user | Yes (Bearer Token) |

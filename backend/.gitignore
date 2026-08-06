@@ -76,6 +76,10 @@ ipython_config.py
 # Environments
 .env
 .venv
+
+# Secrets — service account keys, credential exports
+*firebase-adminsdk*.json
+*serviceAccountKey*.json
 env/
 venv/
 ENV/
@@ -95,3 +99,5 @@ Thumbs.db
 *.sln
 *.sw?
 *.sqlite
+
+uploads/

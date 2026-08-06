@@ -43,6 +43,8 @@ class OrderOut(BaseModel):
     id: str
     buyer_id: str
     seller_id: str
+    buyer_name: Optional[str] = None
+    seller_name: Optional[str] = None
     total_amount: float
     currency: str
     payment_status: PaymentStatus

@@ -3,9 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.core import errors
 from app.models.user import User
+from app.schemas.device_token import DeviceTokenRegister
 from app.schemas.notification import NotificationCreate, NotificationOut
-from app.services import notification_service
+from app.services import notification_service, push_service
 
 router = APIRouter()
 
@@ -25,12 +27,32 @@ def read_notifications(
 def create_notification(
     notification_in: NotificationCreate,
     db: Session = Depends(deps.get_db),
-    _current_user: Any = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_user)
 ) -> Any:
     """
-    Trigger a new push/system notification alert for a user.
+    Trigger a new push/system notification alert. Restricted to notifying
+    yourself — every internal call site (orders, chat, certificates, etc.)
+    creates notifications for other users directly through the service
+    layer, not through this endpoint, so there's no legitimate reason for a
+    client to target anyone else here.
     """
+    if notification_in.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail=errors.NOT_AUTHORIZED)
     return notification_service.create_notification(db, notification_in=notification_in)
+
+@router.post("/register-device", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+def register_device(
+    device_in: DeviceTokenRegister,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+) -> None:
+    """
+    Register (or re-associate) this device's FCM token with the current user,
+    so future notifications can be pushed to it.
+    """
+    push_service.register_device(
+        db, user_id=current_user.id, fcm_token=device_in.fcm_token, platform=device_in.platform
+    )
 
 @router.put("/{notification_id}/read", response_model=NotificationOut)
 def mark_notification_as_read(

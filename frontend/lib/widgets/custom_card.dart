@@ -39,9 +39,17 @@ class CustomCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: Padding(
-          padding: padding,
-          child: child,
+        child: Material(
+          // Gives any ListTile/InkWell descendant a Material ancestor to
+          // paint ink splashes on — without this, Flutter throws a debug
+          // assertion ("ListTile background color or ink splashes may be
+          // invisible") because the Container above paints an opaque
+          // background between the ListTile and the next real Material.
+          color: Colors.transparent,
+          child: Padding(
+            padding: padding,
+            child: child,
+          ),
         ),
       ),
     );

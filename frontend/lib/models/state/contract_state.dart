@@ -2,6 +2,25 @@ import 'package:flutter/material.dart';
 import '../../services/api/contract_api.dart';
 import 'base_app_state.dart';
 
+/// Maps a raw backend error code (from `app/core/errors.py`) returned by a
+/// contract action to a translated, user-facing message. Without this,
+/// failures surface as a bare enum string like
+/// "ONLY_SELLER_CAN_ACTIVATE_CONTRACT".
+String friendlyContractErrorMessage(BaseAppState state, String rawMessage) {
+  switch (rawMessage) {
+    case 'ONLY_SELLER_CAN_ACTIVATE_CONTRACT':
+      return state.translate('error_only_seller_can_activate');
+    case 'CANNOT_MODIFY_ITEMS_AFTER_DRAFT':
+      return state.translate('error_cannot_modify_after_draft');
+    case 'CONTRACT_ALREADY_RESOLVED':
+      return state.translate('error_contract_already_resolved');
+    case 'CONTRACT_PRODUCT_OWNER_MISMATCH':
+      return state.translate('error_contract_product_owner_mismatch');
+    default:
+      return rawMessage;
+  }
+}
+
 mixin ContractStateMixin on BaseAppState {
   // Abstract properties implemented by ProductStateMixin sibling
   List<MarketProduct> get products;
@@ -113,10 +132,14 @@ mixin ContractStateMixin on BaseAppState {
           id: json['id'] ?? '',
           product: prod,
           buyerName: json['buyer_name'] ?? 'Buyer',
+          buyerId: json['buyer_id']?.toString(),
+          sellerId: json['seller_id']?.toString(),
           offeredPrice: (item['agreed_price'] as num?)?.toDouble() ?? 0.0,
           quantity: (item['agreed_quantity'] as num?)?.toDouble() ?? 0.0,
           status: uiStatus,
           chatMessages: ['System: Negotiation started.'],
+          startDate: DateTime.tryParse(json['start_date']?.toString() ?? ''),
+          endDate: DateTime.tryParse(json['end_date']?.toString() ?? ''),
         ));
       }
       _negotiations.clear();
@@ -128,7 +151,8 @@ mixin ContractStateMixin on BaseAppState {
   }
 
   void _placeBidMock(MarketProduct product, double price, double qty) {
-    final existingIndex = _negotiations.indexWhere((n) => n.product.id == product.id && n.buyerName == 'Kosal Pich');
+    final myId = userProfile?['id']?.toString();
+    final existingIndex = _negotiations.indexWhere((n) => n.product.id == product.id && n.buyerId == myId);
     if (existingIndex != -1) {
       _negotiations[existingIndex].offeredPrice = price;
       _negotiations[existingIndex].quantity = qty;
@@ -139,7 +163,9 @@ mixin ContractStateMixin on BaseAppState {
         BidOffer(
           id: 'b_${DateTime.now().millisecondsSinceEpoch}',
           product: product,
-          buyerName: 'Kosal Pich',
+          buyerName: userName,
+          buyerId: myId,
+          sellerId: product.sellerId,
           offeredPrice: price,
           quantity: qty,
           chatMessages: [
@@ -153,10 +179,13 @@ mixin ContractStateMixin on BaseAppState {
     notifyListeners();
   }
 
-  Future<void> placeBid(MarketProduct product, double price, double qty) async {
+  /// Returns null on success, or a raw backend error code (see `errors.py`)
+  /// on failure — callers are responsible for translating that into a
+  /// user-facing message rather than swallowing it silently.
+  Future<String?> placeBid(MarketProduct product, double price, double qty) async {
     if (token == null) {
       _placeBidMock(product, price, qty);
-      return;
+      return null;
     }
     try {
       await ContractApi.createContract(token!, {
@@ -177,25 +206,23 @@ mixin ContractStateMixin on BaseAppState {
       });
       await refreshContracts();
       addNotification('Bid Placed', 'You offered \$$price/$qty for ${product.name}.');
+      return null;
     } catch (e) {
       debugPrint('Failed to place bid: $e');
+      return e.toString().replaceFirst('Exception: ', '');
     }
   }
 
-  void _counterOfferMock(String bidId, double newPrice) {
-    final index = _negotiations.indexWhere((n) => n.id == bidId);
-    if (index != -1) {
-      _negotiations[index].offeredPrice = newPrice;
-      _negotiations[index].status = 'counter_offered';
-      _negotiations[index].chatMessages.add('Farmer: Counter-offered at \$$newPrice');
-      notifyListeners();
-    }
-  }
-
-  Future<void> counterOffer(String bidId, double newPrice) async {
+  Future<String?> counterOffer(String bidId, double newPrice) async {
     if (token == null) {
-      _counterOfferMock(bidId, newPrice);
-      return;
+      final index = _negotiations.indexWhere((n) => n.id == bidId);
+      if (index != -1) {
+        _negotiations[index].offeredPrice = newPrice;
+        _negotiations[index].status = 'counter_offered';
+        _negotiations[index].chatMessages.add('Farmer: Counter-offered at \$$newPrice');
+        notifyListeners();
+      }
+      return null;
     }
     try {
       final bid = _negotiations.firstWhere((n) => n.id == bidId);
@@ -210,57 +237,58 @@ mixin ContractStateMixin on BaseAppState {
         ]
       });
       await refreshContracts();
+      return null;
     } catch (e) {
       debugPrint('Failed to submit counter offer: $e');
+      return e.toString().replaceFirst('Exception: ', '');
     }
   }
 
-  void _acceptBidMock(String bidId) {
-    final index = _negotiations.indexWhere((n) => n.id == bidId);
-    if (index != -1) {
-      _negotiations[index].status = 'accepted';
-      _negotiations[index].chatMessages.add('System: Bid accepted by Farmer!');
-      addNotification('Bid Accepted!', 'Your bid on ${_negotiations[index].product.name} was accepted!');
-      notifyListeners();
-    }
-  }
-
-  Future<void> acceptBid(String bidId) async {
+  /// Accepting/activating a contract is the seller's (farmer's) call, not
+  /// the buyer's — the backend now enforces that too, so a buyer calling
+  /// this on their own proposal will get a translatable error back.
+  Future<String?> acceptBid(String bidId) async {
     if (token == null) {
-      _acceptBidMock(bidId);
-      return;
+      final index = _negotiations.indexWhere((n) => n.id == bidId);
+      if (index != -1) {
+        _negotiations[index].status = 'accepted';
+        _negotiations[index].chatMessages.add('System: Bid accepted by Farmer!');
+        addNotification('Bid Accepted!', 'Your bid on ${_negotiations[index].product.name} was accepted!');
+        notifyListeners();
+      }
+      return null;
     }
     try {
       await ContractApi.updateContract(token!, bidId, {
         'contract_status': 'ACTIVE',
       });
       await refreshContracts();
+      return null;
     } catch (e) {
       debugPrint('Failed to accept bid: $e');
+      return e.toString().replaceFirst('Exception: ', '');
     }
   }
 
-  void _rejectBidMock(String bidId) {
-    final index = _negotiations.indexWhere((n) => n.id == bidId);
-    if (index != -1) {
-      _negotiations[index].status = 'rejected';
-      _negotiations[index].chatMessages.add('System: Offer declined.');
-      notifyListeners();
-    }
-  }
-
-  Future<void> rejectBid(String bidId) async {
+  Future<String?> rejectBid(String bidId) async {
     if (token == null) {
-      _rejectBidMock(bidId);
-      return;
+      final index = _negotiations.indexWhere((n) => n.id == bidId);
+      if (index != -1) {
+        _negotiations[index].status = 'rejected';
+        _negotiations[index].chatMessages.add('System: Offer declined.');
+        notifyListeners();
+      }
+      return null;
     }
     try {
       await ContractApi.updateContract(token!, bidId, {
         'contract_status': 'TERMINATED',
       });
       await refreshContracts();
+      return null;
     } catch (e) {
       debugPrint('Failed to reject bid: $e');
+      return e.toString().replaceFirst('Exception: ', '');
     }
   }
 }

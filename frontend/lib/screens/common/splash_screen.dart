@@ -50,6 +50,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context, listen: false);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -131,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CustomButton(
-                      text: 'Get Started',
+                      text: state.translate('get_started'),
                       icon: Icons.arrow_forward_rounded,
                       onPressed: () {
                         Navigator.pushReplacement(
@@ -144,7 +145,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Empowering Local Producers',
+                      state.translate('empowering_local_producers'),
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

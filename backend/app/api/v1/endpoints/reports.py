@@ -42,12 +42,41 @@ def report_product(
     r_out.product_name = product.product_name
     return r_out
 
+@router.post("/posts/{post_id}/report", response_model=ContentReportOut, status_code=status.HTTP_201_CREATED)
+def report_post(
+    post_id: str,
+    report_in: ContentReportCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    User reports a forum post for policy violations or prohibited content.
+    """
+    post = db.query(ForumPost).filter(ForumPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Forum post not found")
+
+    report = ContentReport(
+        reporter_id=current_user.id,
+        post_id=post_id,
+        reason=report_in.reason,
+        status="pending"
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    r_out = ContentReportOut.model_validate(report)
+    r_out.reporter_name = current_user.username
+    r_out.post_title = post.title
+    return r_out
+
 @router.get("/admin/reports", response_model=List[ContentReportOut])
 def get_content_reports(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_admin_user)
 ) -> Any:
     """
     List all content moderation reports for Admin audit queue.
@@ -75,7 +104,7 @@ def resolve_content_report(
     report_id: str,
     resolve_in: ContentReportResolve,
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_admin_user)
 ) -> Any:
     """
     Admin resolves or dismisses a reported content flag.
@@ -88,11 +117,16 @@ def resolve_content_report(
     report.admin_feedback = resolve_in.admin_feedback
     report.reviewed_at = datetime.now(timezone.utc)
 
-    # If action was resolved and product reported, mark product inactive
-    if resolve_in.status.lower() == "resolved" and report.product_id:
-        prod = db.query(Product).filter(Product.id == report.product_id).first()
-        if prod:
-            prod.status = "inactive"
+    # If action was resolved, take down whichever content was reported
+    if resolve_in.status.lower() == "resolved":
+        if report.product_id:
+            prod = db.query(Product).filter(Product.id == report.product_id).first()
+            if prod:
+                prod.status = "inactive"
+        if report.post_id:
+            post = db.query(ForumPost).filter(ForumPost.id == report.post_id).first()
+            if post:
+                post.is_hidden = True
 
     db.commit()
     db.refresh(report)

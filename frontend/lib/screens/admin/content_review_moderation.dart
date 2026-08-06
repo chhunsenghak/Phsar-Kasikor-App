@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
+import '../../models/app_state.dart';
+import '../../services/api/reports_api.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/app_snackbar.dart';
 
 class ContentReviewModerationScreen extends StatefulWidget {
   const ContentReviewModerationScreen({super.key});
@@ -12,29 +16,60 @@ class ContentReviewModerationScreen extends StatefulWidget {
 }
 
 class _ContentReviewModerationScreenState extends State<ContentReviewModerationScreen> {
-  // Mock flagged item list
-  final List<Map<String, dynamic>> _flaggedItems = [
-    {
-      'id': 'f1',
-      'title': 'Chemical Pest Killer Grade-D',
-      'category': 'Chemicals',
-      'reason': 'Prohibited substance. Platform rules only allow organic bio-pest control products.',
-      'reportedBy': 'User Sophy Ly',
-      'reporterNote': 'This contains banned chemicals that violate organic tech guidelines.',
-    }
-  ];
+  List<dynamic> _reports = [];
+  bool _isLoading = true;
+  String? _error;
 
-  void _dismissFlag(String id, String action) {
+  @override
+  void initState() {
+    super.initState();
+    _loadReports();
+  }
+
+  Future<void> _loadReports() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
     setState(() {
-      _flaggedItems.removeWhere((item) => item['id'] == id);
+      _isLoading = true;
+      _error = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Item action completed: $action')),
-    );
+    try {
+      final list = await ReportsApi.fetchAdminReports(state.token!);
+      setState(() {
+        // The endpoint returns full report history; the active queue only
+        // needs ones nobody has acted on yet.
+        _reports = list.where((r) => r['status'] == 'pending').toList();
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _resolveReport(String reportId, String status, String actionLabel) async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    try {
+      await ReportsApi.resolveReport(state.token!, reportId, status);
+      if (!mounted) return;
+      setState(() {
+        _reports.removeWhere((r) => r['id'] == reportId);
+      });
+      AppSnackBar.success(context, state.translate('item_action_completed', arguments: {'action': actionLabel}));
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -42,7 +77,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
         children: [
           const SizedBox(height: 20),
           Text(
-            'Content Moderation',
+            state.translate('content_moderation'),
             style: GoogleFonts.inter(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -51,7 +86,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
           ),
           const SizedBox(height: 6),
           Text(
-            'Audit reported products, comment logs and community guidelines flags',
+            state.translate('content_moderation_subtitle'),
             style: GoogleFonts.inter(
               fontSize: 14,
               color: AppColors.onSurfaceVariant,
@@ -60,7 +95,29 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
           const SizedBox(height: 20),
 
           Expanded(
-            child: _flaggedItems.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+                            const SizedBox(height: 12),
+                            Text(
+                              state.translate('failed_update_status', arguments: {'error': _error!}),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(color: AppColors.outline),
+                            ),
+                            const SizedBox(height: 12),
+                            CustomButton.secondary(
+                              text: state.translate('retry'),
+                              onPressed: _loadReports,
+                            ),
+                          ],
+                        ),
+                      )
+                : _reports.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -79,7 +136,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          'Moderation Queue Empty',
+                          state.translate('moderation_queue_empty'),
                           style: GoogleFonts.inter(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -88,7 +145,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'All listings meet platform criteria.',
+                          state.translate('all_listings_meet_criteria'),
                           style: GoogleFonts.inter(
                             color: AppColors.onSurfaceVariant,
                           ),
@@ -96,11 +153,20 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                       ],
                     ),
                   )
-                : ListView.separated(
-                    itemCount: _flaggedItems.length,
+                : RefreshIndicator(
+                    onRefresh: _loadReports,
+                    child: ListView.separated(
+                    itemCount: _reports.length,
                     separatorBuilder: (context, index) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
-                      final item = _flaggedItems[index];
+                      final item = _reports[index];
+                      final String reportId = item['id'] as String;
+                      final bool isProduct = item['product_id'] != null;
+                      final String title = (isProduct
+                              ? item['product_name']
+                              : item['post_title']) as String? ??
+                          state.translate('crop_listing');
+                      final String reportedBy = item['reporter_name'] as String? ?? state.translate('registered_buyer');
 
                       return CustomCard(
                         padding: const EdgeInsets.all(20),
@@ -112,7 +178,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                               children: [
                                 Expanded(
                                   child: Text(
-                                    item['title'] as String,
+                                    title,
                                     style: GoogleFonts.inter(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
@@ -127,7 +193,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    'FLAGGED',
+                                    state.translate('flagged_badge'),
                                     style: GoogleFonts.inter(
                                       color: AppColors.error,
                                       fontWeight: FontWeight.bold,
@@ -139,7 +205,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Violation Reason:',
+                              state.translate('violation_reason'),
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -161,7 +227,10 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    'Reported by: ${item['reportedBy']} (${item['reporterNote']})',
+                                    state.translate('reported_by_note', arguments: {
+                                      'by': reportedBy,
+                                      'note': item['reason'] as String,
+                                    }),
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       color: AppColors.outline,
@@ -175,21 +244,23 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                               children: [
                                 Expanded(
                                   child: CustomButton(
-                                    text: 'Remove Product',
+                                    text: isProduct
+                                        ? state.translate('remove_product')
+                                        : state.translate('remove_content'),
                                     height: 44,
                                     backgroundColor: AppColors.error,
                                     onPressed: () {
-                                      _dismissFlag(item['id'] as String, 'Removed Listing');
+                                      _resolveReport(reportId, 'resolved', state.translate('removed_listing'));
                                     },
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: CustomButton.secondary(
-                                    text: 'Dismiss Report',
+                                    text: state.translate('dismiss_report'),
                                     height: 44,
                                     onPressed: () {
-                                      _dismissFlag(item['id'] as String, 'Dismissed Report');
+                                      _resolveReport(reportId, 'dismissed', state.translate('dismissed_report'));
                                     },
                                   ),
                                 ),
@@ -199,6 +270,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                         ),
                       );
                     },
+                  ),
                   ),
           ),
         ],

@@ -20,6 +20,14 @@ class Contract(Base):
     buyer = relationship("User", foreign_keys=[buyer_id], backref="contracts_as_buyer")
     items = relationship("ContractItem", back_populates="contract", cascade="all, delete-orphan")
 
+    @property
+    def buyer_name(self):
+        return self.buyer.username if self.buyer else None
+
+    @property
+    def seller_name(self):
+        return self.seller.username if self.seller else None
+
 
 class ContractItem(Base):
     __tablename__ = "contract_items"

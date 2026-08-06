@@ -15,6 +15,7 @@ class CustomInput extends StatelessWidget {
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final List<TextInputFormatter>? inputFormatters;
+  final bool isRequired;
 
   const CustomInput({
     super.key,
@@ -29,6 +30,7 @@ class CustomInput extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.inputFormatters,
+    this.isRequired = false,
   });
 
   @override
@@ -39,12 +41,26 @@ class CustomInput extends StatelessWidget {
         if (label.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: AppColors.onSurfaceVariant,
+            child: Text.rich(
+              TextSpan(
+                text: label,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.onSurfaceVariant,
+                ),
+                children: isRequired
+                    ? [
+                        TextSpan(
+                          text: ' *',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ),

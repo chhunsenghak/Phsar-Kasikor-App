@@ -28,7 +28,7 @@ def list_posts(
     """
     Retrieve forum post discussions.
     """
-    query = db.query(ForumPost)
+    query = db.query(ForumPost).filter(ForumPost.is_hidden == False)  # noqa: E712
     if category and category != "All":
         query = query.filter(ForumPost.category == category)
 
@@ -76,7 +76,7 @@ def get_post_detail(
     Retrieve forum thread detail with all comments.
     """
     post = db.query(ForumPost).filter(ForumPost.id == post_id).first()
-    if not post:
+    if not post or post.is_hidden:
         raise HTTPException(status_code=404, detail="Forum post not found")
 
     p_out = ForumPostDetailOut.model_validate(post)

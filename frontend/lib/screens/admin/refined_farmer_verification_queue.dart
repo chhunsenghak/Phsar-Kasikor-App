@@ -103,7 +103,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'PENDING AUDIT',
+                      state.translate('pending_audit'),
                       style: GoogleFonts.inter(
                         color: Colors.amber[900],
                         fontWeight: FontWeight.bold,
@@ -114,11 +114,11 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              _buildInfoRow('Farm Name', item.farmName),
+              _buildInfoRow(state.translate('farm_name'), item.farmName),
               const SizedBox(height: 6),
-              _buildInfoRow('Location', item.location),
+              _buildInfoRow(state.translate('location_label'), item.location),
               const SizedBox(height: 6),
-              _buildInfoRow('Crop Focus', item.cropTypes),
+              _buildInfoRow(state.translate('crop_focus'), item.cropTypes),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -150,7 +150,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'PREVIEW',
+                      state.translate('preview_label'),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -240,7 +240,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'PENDING REVIEW',
+                      state.translate('pending_review_badge'),
                       style: GoogleFonts.inter(
                         color: Colors.amber[900],
                         fontWeight: FontWeight.bold,

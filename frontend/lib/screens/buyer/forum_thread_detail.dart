@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
+import '../../widgets/app_snackbar.dart';
 
 class ForumThreadDetailScreen extends StatefulWidget {
   final ForumPost post;
@@ -30,9 +31,7 @@ class _ForumThreadDetailScreenState extends State<ForumThreadDetailScreen> {
     state.addComment(widget.post.id, _commentController.text.trim());
     _commentController.clear();
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Comment published!')),
-    );
+    AppSnackBar.success(context, state.translate('comment_published'));
   }
 
   @override
@@ -54,7 +53,7 @@ class _ForumThreadDetailScreenState extends State<ForumThreadDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Community Discussion',
+          state.translate('community_discussion_title'),
           style: GoogleFonts.inter(
             color: AppColors.onSurface,
             fontWeight: FontWeight.bold,
@@ -135,7 +134,7 @@ class _ForumThreadDetailScreenState extends State<ForumThreadDetailScreen> {
                               },
                             ),
                             Text(
-                              '${livePost.likes} Likes',
+                              state.translate('likes_count', arguments: {'count': livePost.likes.toString()}),
                               style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
                             ),
                           ],
@@ -145,7 +144,7 @@ class _ForumThreadDetailScreenState extends State<ForumThreadDetailScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Comments (${livePost.comments.length})',
+                    state.translate('comments_count_header', arguments: {'count': livePost.comments.length.toString()}),
                     style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.onSurface),
                   ),
                   const SizedBox(height: 12),
@@ -155,7 +154,7 @@ class _ForumThreadDetailScreenState extends State<ForumThreadDetailScreen> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 24.0),
                         child: Text(
-                          'No comments yet. Start the conversation!',
+                          state.translate('no_comments_yet'),
                           style: GoogleFonts.inter(color: AppColors.outline),
                         ),
                       ),
@@ -216,7 +215,7 @@ class _ForumThreadDetailScreenState extends State<ForumThreadDetailScreen> {
                     child: TextField(
                       controller: _commentController,
                       decoration: InputDecoration(
-                        hintText: 'Write a response...',
+                        hintText: state.translate('write_response_hint'),
                         hintStyle: GoogleFonts.inter(fontSize: 14),
                         filled: true,
                         fillColor: AppColors.surfaceContainerLow,

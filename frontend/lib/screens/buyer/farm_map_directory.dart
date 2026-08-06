@@ -25,7 +25,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
     // 1. Group products by farmerName
     final Map<String, List<MarketProduct>> farmerGroups = {};
     for (var p in allProducts) {
-      final key = p.farmerName.isNotEmpty ? p.farmerName : 'Local Farmer';
+      final key = p.farmerName.isNotEmpty ? p.farmerName : state.translate('local_farmer_fallback');
       farmerGroups.putIfAbsent(key, () => []).add(p);
     }
 
@@ -48,7 +48,9 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
     final List<Map<String, dynamic>> producers = [];
     farmerGroups.forEach((farmerName, crops) {
       final firstCrop = crops.first;
-      final loc = firstCrop.location.isNotEmpty ? firstCrop.location : 'Battambang, Cambodia';
+      final loc = firstCrop.location.isNotEmpty
+          ? firstCrop.location
+          : '${state.translate('Battambang')}, ${state.translate('cambodia_fallback')}';
       
       // Determine province tag
       final provTag = loc.split(',').last.trim();
@@ -124,12 +126,12 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                           const Icon(Icons.map_rounded, color: AppColors.primary, size: 44),
                           const SizedBox(height: 8),
                           Text(
-                            'Dynamic Cambodia Agricultural Map',
+                            state.translate('agri_map_title'),
                             style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${filteredProducers.length} Verified Farms Nearby',
+                            state.translate('verified_farms_nearby', arguments: {'count': filteredProducers.length.toString()}),
                             style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
                           ),
                         ],
@@ -151,7 +153,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                           const Icon(Icons.gps_fixed_rounded, color: AppColors.primary, size: 14),
                           const SizedBox(width: 6),
                           Text(
-                            'GPS Active',
+                            state.translate('gps_active'),
                             style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.onSurface),
                           ),
                         ],
@@ -172,7 +174,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                 });
               },
               decoration: InputDecoration(
-                hintText: 'Search farm name, location, or crop...',
+                hintText: state.translate('search_farm_hint'),
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.outline),
                 prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
                 filled: true,
@@ -200,7 +202,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                     padding: const EdgeInsets.only(right: 8.0),
                     child: ChoiceChip(
                       label: Text(
-                        p,
+                        p == 'All' ? state.translate('all') : state.translate(p),
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
@@ -228,11 +230,13 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _selectedProvince == 'All' ? 'Producers Across Cambodia' : 'Producers in $_selectedProvince',
+                  _selectedProvince == 'All'
+                      ? state.translate('producers_across_cambodia')
+                      : state.translate('producers_in_province', arguments: {'province': state.translate(_selectedProvince)}),
                   style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  '${filteredProducers.length} Farms',
+                  state.translate('farms_count', arguments: {'count': filteredProducers.length.toString()}),
                   style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
                 ),
               ],
@@ -248,7 +252,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                       const Icon(Icons.location_off_rounded, size: 40, color: AppColors.outline),
                       const SizedBox(height: 8),
                       Text(
-                        'No farms found for this selection.',
+                        state.translate('no_farms_found'),
                         style: GoogleFonts.inter(fontSize: 14, color: AppColors.outline),
                       ),
                     ],
@@ -280,6 +284,9 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                 farmerName: prod['farmerName'],
                 isVerifiedFarmer: prod['isVerified'],
                 location: prod['location'],
+                sellerId: (prod['crops'] as List<MarketProduct>).isNotEmpty
+                    ? (prod['crops'] as List<MarketProduct>).first.sellerId
+                    : null,
               ),
             ),
           );
@@ -326,7 +333,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                           const SizedBox(width: 16),
                           const Icon(Icons.local_shipping_outlined, color: AppColors.outline, size: 14),
                           const SizedBox(width: 4),
-                          Text('Est: ${prod['shipping']}', style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline)),
+                          Text(state.translate('est_shipping_prefix', arguments: {'shipping': prod['shipping']}), style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline)),
                         ],
                       ),
                     ],
@@ -341,7 +348,7 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                       style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
                     ),
                     const SizedBox(height: 2),
-                    Text('${prod['cropCount']} Crops', style: GoogleFonts.inter(fontSize: 10, color: AppColors.outline)),
+                    Text(state.translate('crops_count', arguments: {'count': prod['cropCount'].toString()}), style: GoogleFonts.inter(fontSize: 10, color: AppColors.outline)),
                   ],
                 ),
               ],

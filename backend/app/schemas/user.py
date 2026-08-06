@@ -83,3 +83,24 @@ class Token(BaseModel):
 
 class TokenPayload(BaseModel):
     sub: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str = Field(..., description="The new password (min 8 characters)")
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError(errors.PASSWORD_MIN_8_CHARACTERS)
+        return value
+
+
+class VerifyEmailRequest(BaseModel):
+    code: str

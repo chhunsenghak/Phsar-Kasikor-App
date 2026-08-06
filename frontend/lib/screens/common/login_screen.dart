@@ -8,7 +8,9 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_input.dart';
 import 'registration_screen.dart';
 import 'app_shell.dart';
+import 'forgot_password_screen.dart';
 import '../../services/api/auth_api.dart';
+import '../../widgets/app_snackbar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -62,14 +64,22 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString().replaceAll('Exception: ', '')),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+          final state = Provider.of<AppState>(context, listen: false);
+          AppSnackBar.error(context, _friendlyLoginError(state, e));
         }
       }
+    }
+  }
+
+  String _friendlyLoginError(AppState state, Object error) {
+    final msg = error.toString().replaceAll('Exception: ', '').trim();
+    switch (msg) {
+      case 'ACCOUNT_LOCKED':
+        return state.translate('account_locked_error');
+      case 'INCORRECT_CREDENTIALS':
+        return state.translate('incorrect_credentials_error');
+      default:
+        return msg;
     }
   }
 
@@ -99,12 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        AppSnackBar.error(context, e.toString().replaceAll('Exception: ', ''));
       }
     }
   }
@@ -282,8 +287,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(state.translate('forgot_sim'))),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
                     );
                   },
                   child: Text(
@@ -401,20 +407,21 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildFooterBadges() {
+    final state = Provider.of<AppState>(context, listen: false);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.outline),
         const SizedBox(width: 4),
         Text(
-          'Secure Connection',
+          state.translate('secure_connection'),
           style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
         ),
         const SizedBox(width: 12),
         const Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.outline),
         const SizedBox(width: 4),
         Text(
-          'Data Encrypted',
+          state.translate('data_encrypted'),
           style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
         ),
       ],

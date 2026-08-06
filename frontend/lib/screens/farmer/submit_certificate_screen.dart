@@ -8,6 +8,7 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../services/api/farmer_certificate_api.dart';
 import '../../services/api/upload_api.dart';
 
@@ -60,9 +61,8 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
     } catch (e) {
       debugPrint('Error picking image: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick image: $e')),
-      );
+      final state = Provider.of<AppState>(context, listen: false);
+      AppSnackBar.error(context, state.translate('failed_pick_image', arguments: {'error': e.toString()}));
     }
   }
 
@@ -70,9 +70,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedImageBytes == null || _selectedImageFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(state.translate('please_upload_image_error'))),
-      );
+      AppSnackBar.error(context, state.translate('please_upload_image_error'));
       return;
     }
     
@@ -126,16 +124,12 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
       state.addVerification(newVerification);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.translate('cert_submit_success'))),
-        );
+        AppSnackBar.success(context, state.translate('cert_submit_success'));
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.translate('cert_submit_failed', arguments: {'error': e.toString()}))),
-        );
+        AppSnackBar.error(context, state.translate('cert_submit_failed', arguments: {'error': e.toString()}));
       }
     } finally {
       if (mounted) {

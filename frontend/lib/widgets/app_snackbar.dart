@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 
+enum AppSnackBarType { success, error, warning, info }
+
 /// A floating, card-styled snackbar used in place of the default Material one.
 ///
 /// The default [SnackBar] renders as a plain dark bar, which reads as a generic
@@ -11,40 +13,85 @@ import '../constants/colors.dart';
 class AppSnackBar {
   AppSnackBar._();
 
-  static void showSuccess(
-    ScaffoldMessengerState messenger, {
-    required String message,
+  static void show(
+    BuildContext context,
+    String message, {
+    AppSnackBarType type = AppSnackBarType.info,
     String? actionLabel,
     VoidCallback? onAction,
+    Duration duration = const Duration(seconds: 4),
   }) {
-    _show(
-      messenger,
-      message: message,
-      icon: Icons.check_circle_rounded,
-      iconColor: AppColors.primary,
-      iconBackground: AppColors.primary.withValues(alpha: 0.12),
+    showOnMessenger(
+      ScaffoldMessenger.of(context),
+      message,
+      type: type,
       actionLabel: actionLabel,
       onAction: onAction,
+      duration: duration,
     );
   }
 
-  /// For non-blocking heads-up notices, e.g. a quantity was capped to stock.
-  static void showNotice(
-    ScaffoldMessengerState messenger, {
-    required String message,
+  /// Same as [show], but takes an already-resolved [ScaffoldMessengerState]
+  /// instead of a [BuildContext]. Needed when the caller must act after
+  /// popping a route (e.g. a bottom sheet) — by then its own `context` is
+  /// unmounted, so the messenger has to be captured beforehand.
+  static void showOnMessenger(
+    ScaffoldMessengerState messenger,
+    String message, {
+    AppSnackBarType type = AppSnackBarType.info,
     String? actionLabel,
     VoidCallback? onAction,
+    Duration duration = const Duration(seconds: 4),
   }) {
+    final IconData icon;
+    final Color iconColor;
+    final Color iconBackground;
+    switch (type) {
+      case AppSnackBarType.success:
+        icon = Icons.check_circle_rounded;
+        iconColor = AppColors.primary;
+        iconBackground = AppColors.primary.withValues(alpha: 0.12);
+        break;
+      case AppSnackBarType.error:
+        icon = Icons.error_rounded;
+        iconColor = AppColors.error;
+        iconBackground = AppColors.error.withValues(alpha: 0.12);
+        break;
+      case AppSnackBarType.warning:
+        icon = Icons.warning_rounded;
+        iconColor = Colors.amber[800]!;
+        iconBackground = Colors.amber.withValues(alpha: 0.15);
+        break;
+      case AppSnackBarType.info:
+        icon = Icons.info_rounded;
+        iconColor = Colors.blueGrey[700]!;
+        iconBackground = Colors.blueGrey.withValues(alpha: 0.12);
+        break;
+    }
+
     _show(
       messenger,
       message: message,
-      icon: Icons.info_rounded,
-      iconColor: Colors.amber[800]!,
-      iconBackground: Colors.amber.withValues(alpha: 0.15),
+      icon: icon,
+      iconColor: iconColor,
+      iconBackground: iconBackground,
       actionLabel: actionLabel,
       onAction: onAction,
+      duration: duration,
     );
   }
+
+  static void success(BuildContext context, String message, {String? actionLabel, VoidCallback? onAction}) =>
+      show(context, message, type: AppSnackBarType.success, actionLabel: actionLabel, onAction: onAction);
+
+  static void error(BuildContext context, String message, {String? actionLabel, VoidCallback? onAction}) =>
+      show(context, message, type: AppSnackBarType.error, actionLabel: actionLabel, onAction: onAction);
+
+  static void warning(BuildContext context, String message, {String? actionLabel, VoidCallback? onAction}) =>
+      show(context, message, type: AppSnackBarType.warning, actionLabel: actionLabel, onAction: onAction);
+
+  static void info(BuildContext context, String message, {String? actionLabel, VoidCallback? onAction}) =>
+      show(context, message, type: AppSnackBarType.info, actionLabel: actionLabel, onAction: onAction);
 
   static void _show(
     ScaffoldMessengerState messenger, {
@@ -54,6 +101,7 @@ class AppSnackBar {
     required Color iconBackground,
     String? actionLabel,
     VoidCallback? onAction,
+    Duration duration = const Duration(seconds: 4),
   }) {
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -63,7 +111,7 @@ class AppSnackBar {
         elevation: 0,
         padding: EdgeInsets.zero,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        duration: const Duration(seconds: 4),
+        duration: duration,
         content: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(

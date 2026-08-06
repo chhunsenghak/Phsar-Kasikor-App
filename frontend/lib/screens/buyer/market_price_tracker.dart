@@ -21,7 +21,7 @@ class MarketPriceTrackerScreen extends StatelessWidget {
           const SizedBox(height: 20),
           // Heading Section
           Text(
-            'Market Price Tracker',
+            state.translate('market_price_tracker_title'),
             style: GoogleFonts.inter(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -30,7 +30,7 @@ class MarketPriceTrackerScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Daily retail & wholesale commodity price benchmarks in Cambodia',
+            state.translate('market_price_subtitle'),
             style: GoogleFonts.inter(
               fontSize: 14,
               color: AppColors.onSurfaceVariant,
@@ -54,7 +54,7 @@ class MarketPriceTrackerScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Agri-Price Index',
+                        state.translate('agri_price_index'),
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -63,7 +63,7 @@ class MarketPriceTrackerScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Updated today: July 22, 2026',
+                        state.translate('updated_today', arguments: {'date': 'July 22, 2026'}),
                         style: GoogleFonts.inter(
                           color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 12,
@@ -88,7 +88,7 @@ class MarketPriceTrackerScreen extends StatelessWidget {
           // Search benchmark field
           TextField(
             decoration: InputDecoration(
-              hintText: 'Search commodities...',
+              hintText: state.translate('search_commodities_hint'),
               hintStyle: GoogleFonts.inter(color: AppColors.outline),
               prefixIcon: const Icon(Icons.search_rounded, color: AppColors.outline),
               filled: true,
@@ -153,7 +153,7 @@ class MarketPriceTrackerScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Wholesale Benchmark',
+                              state.translate('wholesale_benchmark'),
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AppColors.onSurfaceVariant,

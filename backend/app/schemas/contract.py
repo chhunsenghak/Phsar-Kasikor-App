@@ -53,6 +53,8 @@ class ContractUpdate(BaseModel):
 
 class ContractOut(ContractBase):
     id: str
+    buyer_name: Optional[str] = None
+    seller_name: Optional[str] = None
     items: List[ContractItemOut]
 
     model_config = ConfigDict(from_attributes=True)

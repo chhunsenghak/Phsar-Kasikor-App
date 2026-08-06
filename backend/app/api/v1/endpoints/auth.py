@@ -1,13 +1,18 @@
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.api import deps
 from app.core import errors, security, success
 from app.core.database import get_db
-from app.schemas.user import Token, UserCreate
+from app.core.security import get_password_hash
+from app.models.user import User
+from app.schemas.user import (
+    Token, UserCreate, ForgotPasswordRequest, ResetPasswordRequest, VerifyEmailRequest
+)
 from app.schemas.base import SuccessResponse
-from app.services import user_service
+from app.services import user_service, verification_service, email_service
 
 router = APIRouter()
 
@@ -21,13 +26,13 @@ def login(
     OAuth2 compatible token login. Returns an access token for subsequent API requests.
     Note: username in form_data corresponds to the user's email.
     """
-    user = user_service.authenticate_user(
+    user, auth_error = user_service.authenticate_user(
         db, email=form_data.username, password=form_data.password
     )
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=errors.INCORRECT_CREDENTIALS,
+            status_code=status.HTTP_423_LOCKED if auth_error == "ACCOUNT_LOCKED" else status.HTTP_400_BAD_REQUEST,
+            detail=auth_error or errors.INCORRECT_CREDENTIALS,
         )
     elif not user.is_active:
         raise HTTPException(
@@ -47,6 +52,102 @@ def logout() -> Any:
     Log out the current user by returning a standard success response.
     """
     return success.make_success_response(success.LOGOUT_SUCCESS)
+
+
+@router.post("/forgot-password", response_model=SuccessResponse)
+def forgot_password(
+    request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Requests a password-reset code by email. Always returns the same
+    generic response regardless of whether the email is registered, so this
+    endpoint can't be used to enumerate accounts.
+    """
+    user = user_service.get_user_by_email(db, email=request.email)
+    if user:
+        code = verification_service.create_code(
+            db, user_id=user.id, purpose=verification_service.PASSWORD_RESET
+        )
+        background_tasks.add_task(
+            email_service.send_email,
+            user.email,
+            "Phsar Kasikor - Password Reset Code",
+            f"Your password reset code is: {code}\n\n"
+            "This code expires in 15 minutes. If you didn't request this, "
+            "you can safely ignore this email.",
+        )
+    return success.make_success_response(success.PASSWORD_RESET_CODE_SENT)
+
+
+@router.post("/reset-password", response_model=SuccessResponse)
+def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Completes a password reset using the code emailed to the user.
+    """
+    user = user_service.get_user_by_email(db, email=request.email)
+    if not user:
+        raise HTTPException(status_code=400, detail=errors.INVALID_OR_EXPIRED_CODE)
+
+    valid = verification_service.verify_and_consume_code(
+        db, user_id=user.id, purpose=verification_service.PASSWORD_RESET, code=request.code
+    )
+    if not valid:
+        raise HTTPException(status_code=400, detail=errors.INVALID_OR_EXPIRED_CODE)
+
+    user.password = get_password_hash(request.new_password)
+    db.commit()
+    return success.make_success_response(success.PASSWORD_RESET_SUCCESS)
+
+
+@router.post("/send-verification-email", response_model=SuccessResponse)
+def send_verification_email(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Sends (or resends) an email-verification code to the current user.
+    """
+    if current_user.is_verified:
+        return success.make_success_response(success.ALREADY_VERIFIED)
+    if not current_user.email:
+        raise HTTPException(status_code=400, detail=errors.NO_EMAIL_ON_ACCOUNT)
+
+    code = verification_service.create_code(
+        db, user_id=current_user.id, purpose=verification_service.EMAIL_VERIFICATION
+    )
+    background_tasks.add_task(
+        email_service.send_email,
+        current_user.email,
+        "Phsar Kasikor - Verify Your Email",
+        f"Your verification code is: {code}\n\nThis code expires in 15 minutes.",
+    )
+    return success.make_success_response(success.VERIFICATION_CODE_SENT)
+
+
+@router.post("/verify-email", response_model=SuccessResponse)
+def verify_email(
+    request: VerifyEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Confirms the current user's email using the code they were sent.
+    """
+    valid = verification_service.verify_and_consume_code(
+        db, user_id=current_user.id, purpose=verification_service.EMAIL_VERIFICATION, code=request.code
+    )
+    if not valid:
+        raise HTTPException(status_code=400, detail=errors.INVALID_OR_EXPIRED_CODE)
+
+    current_user.is_verified = True
+    db.commit()
+    return success.make_success_response(success.EMAIL_VERIFIED)
 
 
 import json

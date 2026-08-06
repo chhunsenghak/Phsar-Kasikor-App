@@ -6,6 +6,7 @@ import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../services/api/order_api.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
@@ -41,22 +42,22 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     {
       'title': 'step_payment_approved',
       'desc': 'step_payment_approved_desc',
-      'time': 'Just now',
+      'time': 'just_now',
     },
     {
       'title': 'step_packaging',
       'desc': 'step_packaging_desc',
-      'time': 'Pending',
+      'time': 'pending_time_label',
     },
     {
       'title': 'step_in_transit',
       'desc': 'step_in_transit_desc',
-      'time': 'Pending',
+      'time': 'pending_time_label',
     },
     {
       'title': 'step_delivered',
       'desc': 'step_delivered_desc',
-      'time': 'Pending',
+      'time': 'pending_time_label',
     },
   ];
 
@@ -128,13 +129,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           }
 
           if (_currentStep >= 1) {
-            _steps[1]['time'] = 'Updated';
+            _steps[1]['time'] = 'updated_label';
           }
           if (_currentStep >= 2) {
-            _steps[2]['time'] = 'In Transit';
+            _steps[2]['time'] = 'step_in_transit';
           }
           if (_currentStep >= 3) {
-            _steps[3]['time'] = 'Arrived';
+            _steps[3]['time'] = 'arrived_label';
             _steps[3]['desc'] = 'step_delivered_success_desc';
           }
         });
@@ -369,7 +370,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                     ),
                                   ),
                                   Text(
-                                    _steps[idx]['time']!,
+                                    state.translate(_steps[idx]['time']!),
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
                                       color: AppColors.outline,
@@ -402,19 +403,19 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               else ...[
                 if (_orderStatus == 'PLACED')
                   CustomButton(
-                    text: 'Mark Packaging',
+                    text: state.translate('mark_packaging'),
                     backgroundColor: AppColors.primary,
                     onPressed: () => _updateStatus(state, 'CONFIRMED'),
                   )
                 else if (_orderStatus == 'CONFIRMED')
                   CustomButton(
-                    text: _deliveryMethod == 'PICKUP' ? 'Mark Ready for Pickup' : 'Ship Order',
+                    text: _deliveryMethod == 'PICKUP' ? state.translate('mark_ready_pickup') : state.translate('ship_order'),
                     backgroundColor: AppColors.primary,
                     onPressed: () => _updateStatus(state, 'SHIPPED'),
                   )
                 else if (_orderStatus == 'SHIPPED')
                   CustomButton(
-                    text: _deliveryMethod == 'PICKUP' ? 'Mark Collected' : 'Mark Delivered',
+                    text: _deliveryMethod == 'PICKUP' ? state.translate('mark_collected') : state.translate('mark_delivered'),
                     backgroundColor: AppColors.primary,
                     onPressed: () => _updateStatus(state, 'DELIVERED'),
                   ),
@@ -449,20 +450,19 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         orderStatus: nextStatus,
       );
       state.addNotification(
-        'Order Status Updated',
-        'Order PK-${widget.orderId.substring(0, 8).toUpperCase()} was set to $nextStatus.',
+        state.translate('order_status_updated'),
+        state.translate('order_status_updated_msg', arguments: {
+          'id': widget.orderId.substring(0, 8).toUpperCase(),
+          'status': nextStatus,
+        }),
       );
       await _fetchOrderStatus(silent: false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Order updated successfully to $nextStatus!')),
-        );
+        AppSnackBar.success(context, state.translate('order_updated_success', arguments: {'status': nextStatus}));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update status: $e')),
-        );
+        AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
       }
     } finally {
       if (mounted) {
