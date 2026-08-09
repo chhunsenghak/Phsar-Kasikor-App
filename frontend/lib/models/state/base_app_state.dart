@@ -22,6 +22,10 @@ class MarketProduct {
   final String imageUrl;
   final bool isVerifiedFarmer;
   final String? sellerId;
+  /// How much one [unit] weighs, in kg — feeds the delivery-fee estimate.
+  /// Null when the farmer hasn't set it; a per-unit-type default is used
+  /// server-side in that case.
+  final double? weightKgPerUnit;
 
   MarketProduct({
     required this.id,
@@ -37,6 +41,7 @@ class MarketProduct {
     required this.imageUrl,
     this.isVerifiedFarmer = false,
     this.sellerId,
+    this.weightKgPerUnit,
   });
 
   String get formattedPrice {

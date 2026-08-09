@@ -138,6 +138,7 @@ mixin ProductStateMixin on BaseAppState {
           imageUrl: json['image_url'] ?? 'https://images.unsplash.com/photo-1592982537447-7440770cbfc9?w=600',
           isVerifiedFarmer: true,
           sellerId: json['seller_id'],
+          weightKgPerUnit: (json['weight_kg_per_unit'] as num?)?.toDouble(),
         ));
       }
       _products.clear();
@@ -148,11 +149,15 @@ mixin ProductStateMixin on BaseAppState {
     }
   }
 
-  Future<void> addProduct(MarketProduct product) async {
+  /// Returns null on success, or the raw backend error code on failure —
+  /// same convention as [deleteProduct]. Without a return value here, the
+  /// caller has no way to tell the user a create/edit actually failed (a
+  /// validation error would otherwise be silently swallowed).
+  Future<String?> addProduct(MarketProduct product) async {
     if (token == null) {
       _products.insert(0, product);
       notifyListeners();
-      return;
+      return null;
     }
     try {
       await ProductApi.createProduct(token!, {
@@ -165,21 +170,27 @@ mixin ProductStateMixin on BaseAppState {
         'harvest_date': DateTime.now().add(const Duration(days: 30)).toIso8601String().split('T')[0],
         'quality_certification_metadata': product.description,
         'image_url': product.imageUrl,
+        'weight_kg_per_unit': product.weightKgPerUnit,
       });
       await refreshProducts();
+      return null;
     } catch (e) {
-      debugPrint('Failed to create product: $e');
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      debugPrint('Failed to create product: $errMsg');
+      return errMsg;
     }
   }
 
-  Future<void> updateProduct(String productId, MarketProduct product) async {
+  /// Returns null on success, or the raw backend error code on failure —
+  /// see [addProduct].
+  Future<String?> updateProduct(String productId, MarketProduct product) async {
     if (token == null) {
       final index = _products.indexWhere((p) => p.id == productId);
       if (index != -1) {
         _products[index] = product;
         notifyListeners();
       }
-      return;
+      return null;
     }
     try {
       await ProductApi.updateProduct(token!, productId, {
@@ -192,10 +203,14 @@ mixin ProductStateMixin on BaseAppState {
         'harvest_date': DateTime.now().add(const Duration(days: 30)).toIso8601String().split('T')[0],
         'quality_certification_metadata': product.description,
         'image_url': product.imageUrl,
+        'weight_kg_per_unit': product.weightKgPerUnit,
       });
       await refreshProducts();
+      return null;
     } catch (e) {
-      debugPrint('Failed to update product: $e');
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      debugPrint('Failed to update product: $errMsg');
+      return errMsg;
     }
   }
 

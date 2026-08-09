@@ -3,8 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/app_snackbar.dart';
 import 'admin_verification_detail.dart';
 
 class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
@@ -261,8 +263,11 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                     child: CustomButton(
                       text: state.translate('accept'),
                       height: 44,
-                      onPressed: () {
-                        state.approveAddressRequest(item.id);
+                      onPressed: () async {
+                        final errorCode = await state.approveAddressRequest(item.id);
+                        if (errorCode != null && context.mounted) {
+                          AppSnackBar.error(context, translateErrorCode(state, errorCode));
+                        }
                       },
                     ),
                   ),
@@ -273,8 +278,11 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                       height: 44,
                       backgroundColor: AppColors.errorContainer,
                       textColor: AppColors.onErrorContainer,
-                      onPressed: () {
-                        state.rejectAddressRequest(item.id);
+                      onPressed: () async {
+                        final errorCode = await state.rejectAddressRequest(item.id);
+                        if (errorCode != null && context.mounted) {
+                          AppSnackBar.error(context, translateErrorCode(state, errorCode));
+                        }
                       },
                     ),
                   ),

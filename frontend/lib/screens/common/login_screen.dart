@@ -10,6 +10,7 @@ import 'registration_screen.dart';
 import 'app_shell.dart';
 import 'forgot_password_screen.dart';
 import '../../services/api/auth_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -72,15 +73,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _friendlyLoginError(AppState state, Object error) {
-    final msg = error.toString().replaceAll('Exception: ', '').trim();
-    switch (msg) {
-      case 'ACCOUNT_LOCKED':
-        return state.translate('account_locked_error');
-      case 'INCORRECT_CREDENTIALS':
-        return state.translate('incorrect_credentials_error');
-      default:
-        return msg;
-    }
+    // ACCOUNT_LOCKED / INCORRECT_CREDENTIALS / INACTIVE_USER and anything
+    // else the backend can send on login are all covered by the shared
+    // map — see utils/api_error.dart.
+    return friendlyApiError(state, error);
   }
 
   void _handleGoogleSignIn() async {
@@ -109,7 +105,8 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
         });
-        AppSnackBar.error(context, e.toString().replaceAll('Exception: ', ''));
+        final state = Provider.of<AppState>(context, listen: false);
+        AppSnackBar.error(context, friendlyApiError(state, e));
       }
     }
   }

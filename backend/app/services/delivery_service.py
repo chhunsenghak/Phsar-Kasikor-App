@@ -6,6 +6,16 @@ from app.schemas.delivery import DeliveryCreate, DeliveryUpdate
 def get_delivery(db: Session, delivery_id: str) -> Optional[Delivery]:
     return db.query(Delivery).filter(Delivery.id == delivery_id).first()
 
+def get_delivery_for_order(db: Session, order_id: str) -> Optional[Delivery]:
+    return db.query(Delivery).filter(Delivery.order_id == order_id).first()
+
+def update_delivery_location(db: Session, db_delivery: Delivery, lat: float, lng: float) -> Delivery:
+    db_delivery.current_location_lat = lat
+    db_delivery.current_location_lng = lng
+    db.commit()
+    db.refresh(db_delivery)
+    return db_delivery
+
 def get_deliveries(db: Session, skip: int = 0, limit: int = 100) -> List[Delivery]:
     return db.query(Delivery).offset(skip).limit(limit).all()
 

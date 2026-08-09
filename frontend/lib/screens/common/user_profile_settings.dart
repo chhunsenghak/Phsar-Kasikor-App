@@ -11,6 +11,7 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
 import '../../services/api/auth_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
 import 'login_screen.dart';
 import '../farmer/submit_certificate_screen.dart';
@@ -226,7 +227,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
       _showVerifyCodeDialog(state);
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, e.toString().replaceFirst('Exception: ', ''));
+      AppSnackBar.error(context, friendlyApiError(state, e));
     } finally {
       if (mounted) setState(() => _isSendingVerification = false);
     }
@@ -284,7 +285,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                         if (!dialogContext.mounted) return;
                         setDialogState(() => isVerifying = false);
                         if (!mounted) return;
-                        AppSnackBar.error(context, e.toString().replaceFirst('Exception: ', ''));
+                        AppSnackBar.error(context, friendlyApiError(state, e));
                       }
                     },
               child: Text(state.translate('verify_button')),
@@ -1035,7 +1036,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                                         err ==
                                             'ADDRESS_CHANGE_REQUEST_ALREADY_PENDING'
                                         ? state.translate('err_already_pending')
-                                        : err,
+                                        : translateErrorCode(state, err),
                                   );
                                 } else {
                                   _showPremiumStatusDialog(

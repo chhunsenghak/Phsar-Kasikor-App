@@ -24,3 +24,7 @@ class DeliveryOut(DeliveryBase):
     id: str
 
     model_config = ConfigDict(from_attributes=True)
+
+class DeliveryLocationUpdate(BaseModel):
+    current_location_lat: float = Field(..., ge=-90, le=90)
+    current_location_lng: float = Field(..., ge=-180, le=180)

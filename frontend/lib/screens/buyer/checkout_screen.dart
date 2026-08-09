@@ -7,7 +7,9 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../services/api/order_api.dart';
+import '../../utils/api_error.dart';
 import '../common/order_contract_history_screen.dart';
+import 'delivery_location_picker.dart';
 import 'khqr_checkout.dart';
 import 'order_tracking.dart';
 
@@ -37,6 +39,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _deliveryMethod = 'DELIVERY';
   String _paymentMethod = 'KHQR';
   bool _isPlacingOrders = false;
+  DeliveryLocation? _deliveryLocation;
+  bool _prefilledFromProfile = false;
 
   /// Snapshot taken at construction: the cart can be mutated while this screen
   /// is open, and checkout must charge exactly what was reviewed.
@@ -46,18 +50,54 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   late final List<CartGroup> _groups = groupCartItems(_items);
 
-  String _friendlyError(AppState state, Object error) {
-    final msg = error.toString().replaceAll('Exception: ', '').trim();
-    switch (msg) {
-      case 'INSUFFICIENT_STOCK':
-        return state.translate('exceeds_stock');
-      case 'PRODUCT_NOT_FOUND':
-        return state.translate('product_unavailable');
-      case 'CANNOT_ORDER_OWN_PRODUCT':
-        return state.translate('cannot_order_own_product');
-      default:
-        return msg;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillLocationFromProfile());
+  }
+
+  /// Defaults the delivery pin to the buyer's saved profile address, if one
+  /// exists with coordinates — they can still change it before placing the
+  /// order.
+  void _prefillLocationFromProfile() {
+    if (_prefilledFromProfile || !mounted) return;
+    _prefilledFromProfile = true;
+    final state = Provider.of<AppState>(context, listen: false);
+    final profile = state.userProfile;
+    final lat = (profile?['latitude'] as num?)?.toDouble();
+    final lng = (profile?['longitude'] as num?)?.toDouble();
+    if (lat == null || lng == null) return;
+    setState(() {
+      _deliveryLocation = DeliveryLocation(
+        lat: lat,
+        lng: lng,
+        addressText: profile?['street_address']?.toString(),
+      );
+    });
+  }
+
+  Future<void> _openLocationPicker() async {
+    final result = await Navigator.push<DeliveryLocation>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DeliveryLocationPicker(
+          initialLat: _deliveryLocation?.lat,
+          initialLng: _deliveryLocation?.lng,
+          initialAddressText: _deliveryLocation?.addressText,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _deliveryLocation = result);
     }
+  }
+
+  String _friendlyError(AppState state, Object error) {
+    // All order-creation error codes (INSUFFICIENT_STOCK, PRODUCT_NOT_FOUND,
+    // CANNOT_ORDER_OWN_PRODUCT, DELIVERY_LOCATION_REQUIRED,
+    // MULTIPLE_CURRENCIES_IN_ORDER, MULTIPLE_SELLERS_IN_ORDER, ...) are
+    // covered by the shared map — see utils/api_error.dart.
+    return friendlyApiError(state, error);
   }
 
   Future<void> _placeOrders(AppState state) async {
@@ -69,6 +109,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
     if (state.token == null) {
       _showMessage(state.translate('login_to_checkout'));
+      return;
+    }
+    if (_deliveryMethod == 'DELIVERY' && _deliveryLocation == null) {
+      _showMessage(state.translate('delivery_location_required'));
       return;
     }
 
@@ -84,6 +128,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           items: group.toOrderItems(),
           paymentMethod: _paymentMethod,
           deliveryMethod: _deliveryMethod,
+          deliveryAddressText: _deliveryLocation?.addressText,
+          deliveryLat: _deliveryLocation?.lat,
+          deliveryLng: _deliveryLocation?.lng,
         );
         final orderId = res['id']?.toString();
         if (orderId == null || orderId.isEmpty) {
@@ -94,6 +141,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           orderId: orderId,
           group: group,
           deliveryMethod: _deliveryMethod,
+          totalAmount: (res['total_amount'] as num?)?.toDouble() ?? group.total(_deliveryMethod),
+          deliveryFeeAmount: (res['delivery_fee'] as num?)?.toDouble() ?? 0.0,
         ));
       } catch (e) {
         failures.add('${group.sellerName}: ${_friendlyError(state, e)}');
@@ -274,6 +323,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ],
           ),
+          if (_deliveryMethod == 'DELIVERY') ...[
+            const SizedBox(height: 18),
+            _buildDeliveryLocationSection(state),
+          ],
           const SizedBox(height: 18),
           _buildOptionSection(
             label: state.translate('payment_method'),
@@ -409,7 +462,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           const SizedBox(height: 4),
           _buildAmountRow(
-            state.translate('delivery_fee'),
+            _deliveryMethod == 'PICKUP'
+                ? state.translate('delivery_fee')
+                : state.translate('estimated_delivery_fee'),
             _deliveryMethod == 'PICKUP'
                 ? state.translate('free')
                 : formatCurrencyAmount(group.deliveryFee(_deliveryMethod), group.currency),
@@ -420,6 +475,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             formatCurrencyAmount(group.total(_deliveryMethod), group.currency),
             emphasize: true,
           ),
+          if (_deliveryMethod == 'DELIVERY') ...[
+            const SizedBox(height: 6),
+            Text(
+              state.translate('delivery_fee_estimate_notice'),
+              style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
+            ),
+          ],
         ],
       ),
     );
@@ -502,6 +564,64 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             fontSize: emphasize ? 15 : 13,
             fontWeight: emphasize ? FontWeight.bold : FontWeight.w600,
             color: emphasize ? AppColors.primary : AppColors.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveryLocationSection(AppState state) {
+    final loc = _deliveryLocation;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          state.translate('delivery_location'),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        CustomCard(
+          padding: const EdgeInsets.all(14),
+          borderSide: BorderSide(
+            color: loc == null ? AppColors.error.withValues(alpha: 0.5) : AppColors.outlineVariant,
+            width: 0.8,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.location_on_rounded,
+                color: loc == null ? AppColors.error : AppColors.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  loc == null
+                      ? state.translate('no_delivery_location_set')
+                      : (loc.addressText?.isNotEmpty == true
+                          ? loc.addressText!
+                          : '${loc.lat.toStringAsFixed(5)}, ${loc.lng.toStringAsFixed(5)}'),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: loc == null ? AppColors.error : AppColors.onSurface,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: _isPlacingOrders ? null : _openLocationPicker,
+                child: Text(
+                  loc == null ? state.translate('choose_on_map') : state.translate('change_location'),
+                ),
+              ),
+            ],
           ),
         ),
       ],

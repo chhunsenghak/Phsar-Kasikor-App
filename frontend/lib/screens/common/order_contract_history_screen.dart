@@ -13,6 +13,7 @@ import '../buyer/khqr_checkout.dart';
 import '../buyer/order_tracking.dart';
 import 'chat_thread_screen.dart';
 import '../../services/pdf_generator_service.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
 
 class OrderContractHistoryScreen extends StatefulWidget {
@@ -93,13 +94,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
       }
     } catch (e) {
       if (mounted) {
-        AppSnackBar.error(
-          context,
-          state.translate(
-            'failed_update_status',
-            arguments: {'error': e.toString()},
-          ),
-        );
+        AppSnackBar.error(context, friendlyApiError(state, e));
       }
     }
   }
@@ -191,6 +186,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
       orderId: order['id']?.toString() ?? '',
       group: group,
       totalAmount: totalAmount,
+      deliveryFee: (order['delivery_fee'] as num?)?.toDouble() ?? 0.0,
       deliveryMethod: (order['delivery_method'] ?? 'DELIVERY').toString(),
     );
   }
@@ -1366,12 +1362,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     final double totalAmount =
         (order['total_amount'] as num?)?.toDouble() ?? 0.0;
     final String currency = resolveOrderCurrency(order, state.products);
-    final isPickup = (order['delivery_method'] ?? 'DELIVERY') == 'PICKUP';
-    // No delivery-fee column exists on the order yet, so the split shown here
-    // is reconstructed from today's flat-fee schedule — it may not match what
-    // was actually charged on an older order — but must still sum back to the
-    // backend's real total_amount rather than inflate it.
-    final double deliveryFee = isPickup ? 0.0 : deliveryFeeFor(currency);
+    final double deliveryFee = (order['delivery_fee'] as num?)?.toDouble() ?? 0.0;
     final double subtotal = totalAmount - deliveryFee;
     final items = order['items'] as List<dynamic>? ?? [];
     final bool isFarmerView = state.currentRole == 'farmer';
@@ -1797,11 +1788,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       } catch (e) {
                         if (!dialogContext.mounted) return;
                         setDialogState(() => isSubmitting = false);
-                        final raw = e.toString().replaceFirst('Exception: ', '');
-                        final friendly = raw == 'DISPUTE_ALREADY_OPEN'
-                            ? state.translate('error_dispute_already_open')
-                            : raw;
-                        AppSnackBar.error(dialogContext, friendly);
+                        AppSnackBar.error(dialogContext, friendlyApiError(state, e));
                       }
                     },
               child: Text(state.translate('submit_dispute')),
@@ -1879,13 +1866,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       } catch (e) {
                         if (!dialogContext.mounted) return;
                         setDialogState(() => isSubmitting = false);
-                        final raw = e.toString().replaceFirst('Exception: ', '');
-                        final friendly = raw == 'ORDER_ALREADY_REVIEWED'
-                            ? state.translate('error_order_already_reviewed')
-                            : (raw == 'ORDER_NOT_DELIVERED'
-                                ? state.translate('error_order_not_delivered')
-                                : raw);
-                        AppSnackBar.error(dialogContext, friendly);
+                        AppSnackBar.error(dialogContext, friendlyApiError(state, e));
                       }
                     },
               child: Text(state.translate('submit_review')),

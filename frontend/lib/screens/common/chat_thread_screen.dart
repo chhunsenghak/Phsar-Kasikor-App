@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/chat_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
 
 class ChatThreadScreen extends StatefulWidget {
@@ -82,7 +83,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       await _loadMessages();
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+      AppSnackBar.error(context, friendlyApiError(state, e));
     } finally {
       if (mounted) setState(() => _isSending = false);
     }

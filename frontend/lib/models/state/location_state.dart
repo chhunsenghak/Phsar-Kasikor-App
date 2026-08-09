@@ -317,7 +317,11 @@ mixin LocationStateMixin on BaseAppState {
     }
   }
 
-  Future<void> approveAddressRequest(String requestId) async {
+  /// Returns null on success, or the raw backend error code on failure —
+  /// same convention as `ProductStateMixin.deleteProduct`. Without a return
+  /// value, the admin has no way to know an approval silently failed (e.g.
+  /// the request was already resolved by someone else).
+  Future<String?> approveAddressRequest(String requestId) async {
     if (token == null) {
       final idx = _addressRequests.indexWhere((r) => r.id == requestId);
       if (idx != -1) {
@@ -334,12 +338,12 @@ mixin LocationStateMixin on BaseAppState {
         addNotification('Address Update Approved', 'Your request to update address has been approved.');
         notifyListeners();
       }
-      return;
+      return null;
     }
 
     try {
       await UserApi.approveAddressRequest(token!, requestId);
-      
+
       AddressChangeRequest? req;
       for (var r in _addressRequests) {
         if (r.id == requestId) {
@@ -357,12 +361,17 @@ mixin LocationStateMixin on BaseAppState {
 
       addNotification('Address Update Approved', 'Your request to update address has been approved.');
       await refreshAddressRequests();
+      return null;
     } catch (e) {
-      debugPrint('Failed to approve address request: $e');
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      debugPrint('Failed to approve address request: $errMsg');
+      return errMsg;
     }
   }
 
-  Future<void> rejectAddressRequest(String requestId) async {
+  /// Returns null on success, or the raw backend error code on failure —
+  /// see [approveAddressRequest].
+  Future<String?> rejectAddressRequest(String requestId) async {
     if (token == null) {
       final idx = _addressRequests.indexWhere((r) => r.id == requestId);
       if (idx != -1) {
@@ -370,15 +379,18 @@ mixin LocationStateMixin on BaseAppState {
         addNotification('Address Update Rejected', 'Your request to update address was rejected.');
         notifyListeners();
       }
-      return;
+      return null;
     }
 
     try {
       await UserApi.rejectAddressRequest(token!, requestId);
       addNotification('Address Update Rejected', 'Your request to update address was rejected.');
       await refreshAddressRequests();
+      return null;
     } catch (e) {
-      debugPrint('Failed to reject address request: $e');
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      debugPrint('Failed to reject address request: $errMsg');
+      return errMsg;
     }
   }
 }

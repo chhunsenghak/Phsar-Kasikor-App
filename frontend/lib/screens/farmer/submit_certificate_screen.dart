@@ -11,6 +11,7 @@ import '../../widgets/custom_input.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../services/api/farmer_certificate_api.dart';
 import '../../services/api/upload_api.dart';
+import '../../utils/api_error.dart';
 
 class SubmitCertificateScreen extends StatefulWidget {
   const SubmitCertificateScreen({super.key});
@@ -129,7 +130,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
       }
     } catch (e) {
       if (mounted) {
-        AppSnackBar.error(context, state.translate('cert_submit_failed', arguments: {'error': e.toString()}));
+        AppSnackBar.error(context, state.translate('cert_submit_failed', arguments: {'error': friendlyApiError(state, e)}));
       }
     } finally {
       if (mounted) {

@@ -4,13 +4,56 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
 from app.models.user import User
+from app.models.delivery import Delivery
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.schemas.notification import NotificationCreate
-from app.services import notification_service
+from app.services import geo_service, notification_service
 
 # Below this, a listing is "running low" — worth telling the farmer about
 # before they oversell or a buyer hits an empty listing.
 LOW_STOCK_THRESHOLD = 10
+
+# A seller-driven pipeline — only the seller advances it (matches the
+# existing app UX, where only the farmer's screen exposes these actions).
+# CANCELLED is reached only via cancel_order, never via this map.
+ORDER_STATUS_TRANSITIONS = {
+    "PLACED": {"CONFIRMED"},
+    "CONFIRMED": {"SHIPPED"},
+    "SHIPPED": {"DELIVERED"},
+}
+
+# Weight assumed per unit when a farmer hasn't declared Product.weight_kg_per_unit
+# — rough per-unit-type averages, used only as a fallback so pricing still
+# works for older/unedited listings.
+DEFAULT_WEIGHT_KG_PER_UNIT = {
+    "KG": 1.0,
+    "TON": 1000.0,
+    "SACK": 50.0,
+    "CRATE": 20.0,
+    "BUNCH": 5.0,
+    "BOX": 10.0,
+    "PIECE": 1.0,
+}
+
+# Straight-line distance assumed when the seller hasn't set a profile
+# location yet, so pricing still works instead of blocking checkout — a
+# rough average trip within a Cambodian province.
+DEFAULT_DISTANCE_KM = 15.0
+
+# fee = base + per_km*distance + per_kg*weight, clamped to [min, max]. The
+# only real "pricing" knobs in this module — tune here.
+_DELIVERY_PRICING = {
+    "USD": {"base": 1.0, "per_km": 0.05, "per_kg": 0.03, "min": 1.0, "max": 25.0},
+    "KHR": {"base": 4000.0, "per_km": 200.0, "per_kg": 120.0, "min": 4000.0, "max": 100000.0},
+}
+
+def _delivery_fee_for(currency: str, distance_km: float, weight_kg: float) -> float:
+    pricing = _DELIVERY_PRICING.get(currency, _DELIVERY_PRICING["USD"])
+    fee = pricing["base"] + pricing["per_km"] * distance_km + pricing["per_kg"] * weight_kg
+    fee = max(pricing["min"], min(pricing["max"], fee))
+    # Riel has no practical fractional denomination in daily use, unlike
+    # USD cents — round to the nearest 100.
+    return round(fee / 100) * 100 if currency == "KHR" else round(fee, 2)
 
 def get_order(db: Session, order_id: str) -> Optional[Order]:
     return db.query(Order).options(
@@ -26,12 +69,19 @@ def get_orders_for_user(db: Session, user_id: str, skip: int = 0, limit: int = 1
 
 def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
     total_amount = 0.0
+    total_weight_kg = 0.0
     db_items = []
     seller_id = None
     currency = None
 
     if not order_in.items:
         raise Exception("NO_ITEMS_IN_ORDER")
+
+    resolved_delivery_method = order_in.delivery_method or "DELIVERY"
+    if resolved_delivery_method == "DELIVERY" and (
+        order_in.delivery_lat is None or order_in.delivery_lng is None
+    ):
+        raise Exception("DELIVERY_LOCATION_REQUIRED")
 
     # Merge repeated lines for the same product first. Validating them
     # separately would let each line pass the stock check on its own while the
@@ -70,6 +120,13 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
         subtotal = float(db_product.price_per_unit) * quantity
         total_amount += subtotal
 
+        weight_per_unit = (
+            float(db_product.weight_kg_per_unit)
+            if db_product.weight_kg_per_unit is not None
+            else DEFAULT_WEIGHT_KG_PER_UNIT.get(db_product.unit_type, 1.0)
+        )
+        total_weight_kg += weight_per_unit * quantity
+
         # Decrease stock availability
         old_quantity = float(db_product.quantity_available)
         new_quantity = old_quantity - quantity
@@ -103,6 +160,26 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
     if not db_items:
         raise Exception("NO_ITEMS_IN_ORDER")
 
+    # A delivery fee is charged once per order group, same as the goods
+    # total — it must live in total_amount itself, since that's the figure
+    # the KHQR payment amount is generated from.
+    distance_km = DEFAULT_DISTANCE_KM
+    if resolved_delivery_method == "DELIVERY":
+        seller_user = db.query(User).filter(User.id == seller_id).first()
+        if seller_user and seller_user.latitude is not None and seller_user.longitude is not None:
+            distance_km = geo_service.haversine_km(
+                seller_user.latitude, seller_user.longitude,
+                order_in.delivery_lat, order_in.delivery_lng,
+            )
+        # else: the seller hasn't set a profile location — fall back to
+        # DEFAULT_DISTANCE_KM rather than block checkout on their behalf.
+
+    delivery_fee = (
+        _delivery_fee_for(currency, distance_km, total_weight_kg)
+        if resolved_delivery_method == "DELIVERY" else 0.0
+    )
+    total_amount += delivery_fee
+
     # 2. Save order
     db_order = Order(
         buyer_id=buyer_id,
@@ -112,7 +189,13 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
         payment_status="PENDING",
         order_status="PLACED",
         payment_method=order_in.payment_method or "KHQR",
-        delivery_method=order_in.delivery_method or "DELIVERY"
+        delivery_method=resolved_delivery_method,
+        delivery_fee=delivery_fee,
+        delivery_address_text=order_in.delivery_address_text if resolved_delivery_method == "DELIVERY" else None,
+        delivery_lat=order_in.delivery_lat if resolved_delivery_method == "DELIVERY" else None,
+        delivery_lng=order_in.delivery_lng if resolved_delivery_method == "DELIVERY" else None,
+        delivery_distance_km=distance_km if resolved_delivery_method == "DELIVERY" else None,
+        delivery_weight_kg=total_weight_kg if resolved_delivery_method == "DELIVERY" else None,
     )
     db.add(db_order)
     db.flush() # Flushes order to generate ID
@@ -121,6 +204,11 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
     for db_item in db_items:
         db_item.order_id = db_order.id
         db.add(db_item)
+
+    # 3b. Seed the delivery tracking record so it exists from the start of
+    # the order's life rather than being created ad hoc later.
+    if resolved_delivery_method == "DELIVERY":
+        db.add(Delivery(order_id=db_order.id, delivery_status="pending"))
 
     db.commit()
     db.refresh(db_order)
@@ -141,12 +229,85 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
 
     return db_order
 
-def update_order(db: Session, db_order: Order, order_update: OrderUpdate) -> Order:
-    update_data = order_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_order, field, value)
+def update_order_status(db: Session, db_order: Order, order_update: OrderUpdate, actor_id: str) -> Order:
+    # Only the seller drives fulfillment — the buyer's only lever on order
+    # state is cancel_order, matching what the app's UI already exposes.
+    if db_order.seller_id != actor_id:
+        raise Exception("NOT_AUTHORIZED")
+
+    new_status = order_update.order_status.value
+    allowed = ORDER_STATUS_TRANSITIONS.get(db_order.order_status, set())
+    if new_status not in allowed:
+        raise Exception("INVALID_ORDER_STATUS_TRANSITION")
+
+    # A KHQR order can't be confirmed until the backend has actually
+    # verified the money moved — otherwise a seller could start fulfilling
+    # (or a buyer could pressure them to) an order nobody paid for.
+    if new_status == "CONFIRMED" and db_order.payment_method == "KHQR" and db_order.payment_status != "PAID":
+        raise Exception("PAYMENT_NOT_CONFIRMED")
+
+    db_order.order_status = new_status
+
+    delivery = db.query(Delivery).filter(Delivery.order_id == db_order.id).first()
+    if new_status == "SHIPPED" and delivery:
+        delivery.delivery_status = "in_transit"
+    elif new_status == "DELIVERED":
+        if delivery:
+            delivery.delivery_status = "arrived"
+        # Cash on delivery settles the moment goods change hands — nothing
+        # else would ever flip this order's payment_status otherwise.
+        if db_order.payment_method == "COD" and db_order.payment_status == "PENDING":
+            db_order.payment_status = "PAID"
+
     db.commit()
     db.refresh(db_order)
+
+    try:
+        notification_service.create_notification(
+            db,
+            notification_in=NotificationCreate(
+                user_id=db_order.buyer_id,
+                title="Order Status Updated",
+                message=f"Your order #{db_order.id[:8].upper()} is now {new_status}.",
+                is_read=False
+            )
+        )
+    except Exception:
+        pass
+
+    return db_order
+
+
+def confirm_payment_by_seller(db: Session, db_order: Order, actor_id: str) -> Order:
+    """
+    Manual fallback for when Bakong verification isn't configured/available:
+    the seller — the only party who actually knows whether the money
+    arrived, and who has no incentive to lie about it — confirms receipt
+    themselves. This is the only writer of payment_status besides the
+    verified Bakong check and dispute resolution.
+    """
+    if db_order.seller_id != actor_id:
+        raise Exception("NOT_AUTHORIZED")
+    if db_order.payment_status == "PAID":
+        raise Exception("ORDER_ALREADY_PAID")
+
+    db_order.payment_status = "PAID"
+    db.commit()
+    db.refresh(db_order)
+
+    try:
+        notification_service.create_notification(
+            db,
+            notification_in=NotificationCreate(
+                user_id=db_order.buyer_id,
+                title="Payment Confirmed",
+                message=f"The seller confirmed your payment for order #{db_order.id[:8].upper()}.",
+                is_read=False
+            )
+        )
+    except Exception:
+        pass
+
     return db_order
 
 
@@ -171,6 +332,11 @@ def cancel_order(db: Session, order_id: str, current_user_id: str) -> Order:
 
     # Update order state
     db_order.order_status = "CANCELLED"
+
+    delivery = db.query(Delivery).filter(Delivery.order_id == db_order.id).first()
+    if delivery:
+        delivery.delivery_status = "failed"
+
     db.commit()
     db.refresh(db_order)
 

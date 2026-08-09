@@ -23,11 +23,17 @@ class OrderApi {
   ///
   /// All items must belong to the same seller — the backend rejects a mixed
   /// order with `MULTIPLE_SELLERS_IN_ORDER`. Split per seller before calling.
+  ///
+  /// [deliveryLat]/[deliveryLng] are required by the backend whenever
+  /// [deliveryMethod] is `DELIVERY` — it's the buyer's chosen drop-off point.
   static Future<Map<String, dynamic>> createOrder(
     String token, {
     required List<Map<String, dynamic>> items,
     String paymentMethod = 'KHQR',
     String deliveryMethod = 'DELIVERY',
+    String? deliveryAddressText,
+    double? deliveryLat,
+    double? deliveryLng,
   }) async {
     final response = await http.post(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/'),
@@ -36,6 +42,9 @@ class OrderApi {
         'items': items,
         'payment_method': paymentMethod,
         'delivery_method': deliveryMethod,
+        if (deliveryAddressText != null) 'delivery_address_text': deliveryAddressText,
+        if (deliveryLat != null) 'delivery_lat': deliveryLat,
+        if (deliveryLng != null) 'delivery_lng': deliveryLng,
       }),
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
@@ -48,6 +57,9 @@ class OrderApi {
     required double quantity,
     String paymentMethod = 'KHQR',
     String deliveryMethod = 'DELIVERY',
+    String? deliveryAddressText,
+    double? deliveryLat,
+    double? deliveryLng,
   }) {
     return createOrder(
       token,
@@ -56,23 +68,36 @@ class OrderApi {
       ],
       paymentMethod: paymentMethod,
       deliveryMethod: deliveryMethod,
+      deliveryAddressText: deliveryAddressText,
+      deliveryLat: deliveryLat,
+      deliveryLng: deliveryLng,
     );
   }
 
+  /// Advances the order's fulfillment stage. Seller-only on the backend —
+  /// there is no `paymentStatus` parameter here anymore: payment_status is
+  /// never settable by the buyer or seller directly, see [PaymentApi] and
+  /// [confirmPayment].
   static Future<Map<String, dynamic>> updateOrder(
     String token,
     String orderId, {
-    String? paymentStatus,
-    String? orderStatus,
+    required String orderStatus,
   }) async {
-    final Map<String, dynamic> body = {};
-    if (paymentStatus != null) body['payment_status'] = paymentStatus;
-    if (orderStatus != null) body['order_status'] = orderStatus;
-
     final response = await http.put(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/$orderId'),
       headers: BaseApi.getHeaders(token, json: true),
-      body: jsonEncode(body),
+      body: jsonEncode({'order_status': orderStatus}),
+    );
+    return BaseApi.handleResponse(response) as Map<String, dynamic>;
+  }
+
+  /// Seller-side manual "I received the payment" fallback for when
+  /// automatic Bakong verification isn't available. Only the seller of the
+  /// order may call this.
+  static Future<Map<String, dynamic>> confirmPayment(String token, String orderId) async {
+    final response = await http.post(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/$orderId/confirm-payment'),
+      headers: BaseApi.getHeaders(token, json: false),
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }

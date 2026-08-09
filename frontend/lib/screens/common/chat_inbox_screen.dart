@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/chat_api.dart';
+import '../../utils/api_error.dart';
 import 'chat_thread_screen.dart';
 
 class ChatInboxScreen extends StatefulWidget {
@@ -38,7 +39,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = friendlyApiError(state, e);
       });
     } finally {
       setState(() {

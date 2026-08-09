@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/reports_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
@@ -42,7 +43,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = friendlyApiError(state, e);
       });
     } finally {
       setState(() {
@@ -63,7 +64,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
       AppSnackBar.success(context, state.translate('item_action_completed', arguments: {'action': actionLabel}));
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+      AppSnackBar.error(context, friendlyApiError(state, e));
     }
   }
 
@@ -105,7 +106,7 @@ class _ContentReviewModerationScreenState extends State<ContentReviewModerationS
                             const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
                             const SizedBox(height: 12),
                             Text(
-                              state.translate('failed_update_status', arguments: {'error': _error!}),
+                              _error!,
                               textAlign: TextAlign.center,
                               style: GoogleFonts.inter(color: AppColors.outline),
                             ),

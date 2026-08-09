@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.core import errors
 from app.core.database import get_db
 from app.models.user import User
 from app.models.product import Product
@@ -25,7 +26,7 @@ def report_product(
     """
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail=errors.PRODUCT_NOT_FOUND)
 
     report = ContentReport(
         reporter_id=current_user.id,
@@ -54,7 +55,7 @@ def report_post(
     """
     post = db.query(ForumPost).filter(ForumPost.id == post_id).first()
     if not post:
-        raise HTTPException(status_code=404, detail="Forum post not found")
+        raise HTTPException(status_code=404, detail=errors.FORUM_POST_NOT_FOUND)
 
     report = ContentReport(
         reporter_id=current_user.id,
@@ -111,7 +112,7 @@ def resolve_content_report(
     """
     report = db.query(ContentReport).filter(ContentReport.id == report_id).first()
     if not report:
-        raise HTTPException(status_code=404, detail="Content report not found")
+        raise HTTPException(status_code=404, detail=errors.CONTENT_REPORT_NOT_FOUND)
 
     report.status = resolve_in.status.lower()
     report.admin_feedback = resolve_in.admin_feedback

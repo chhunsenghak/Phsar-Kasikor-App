@@ -67,7 +67,7 @@ def mark_notification_as_read(
         db, notification_id=notification_id, user_id=current_user.id
     )
     if not db_notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=errors.NOTIFICATION_NOT_FOUND)
     return db_notification
 
 @router.delete("/{notification_id}")
@@ -83,5 +83,5 @@ def delete_notification(
         db, notification_id=notification_id, user_id=current_user.id
     )
     if not db_notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=errors.NOTIFICATION_NOT_FOUND)
     return {"message": "Notification deleted successfully"}

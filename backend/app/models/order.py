@@ -17,6 +17,25 @@ class Order(Base):
     order_status = Column(String, default="PLACED", nullable=False) # PLACED, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
     payment_method = Column(String, default="KHQR", nullable=False) # KHQR, COD
     delivery_method = Column(String, default="DELIVERY", nullable=False) # DELIVERY, PICKUP
+    delivery_fee = Column(Numeric(10, 2), default=0, nullable=False)
+
+    # Buyer-chosen drop-off point, captured once at checkout — a snapshot,
+    # not a live pointer to the buyer's profile address, since the profile
+    # can change after the order is placed.
+    delivery_address_text = Column(String, nullable=True)
+    delivery_lat = Column(Numeric(10, 8), nullable=True)
+    delivery_lng = Column(Numeric(11, 8), nullable=True)
+
+    # Snapshot of what delivery_fee was actually computed from — kept so a
+    # later profile-address change by the seller can't retroactively change
+    # what an old order's fee "should" have been.
+    delivery_distance_km = Column(Numeric(8, 2), nullable=True)
+    delivery_weight_kg = Column(Numeric(10, 2), nullable=True)
+
+    # Links a generated KHQR to the order(s) it covers, so a payment status
+    # check/confirm on that md5 knows which orders to settle.
+    khqr_md5 = Column(String, nullable=True, index=True)
+
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

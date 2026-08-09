@@ -23,6 +23,9 @@ class ProductBase(BaseModel):
     quality_certification_metadata: Optional[str] = None
     status: str = "active"
     image_url: Optional[str] = None
+    # How much one unit_type unit weighs — feeds the delivery-fee estimate.
+    # Optional: a rough per-unit-type default is used when this is unset.
+    weight_kg_per_unit: Optional[float] = Field(None, gt=0)
 
 class ProductCreate(ProductBase):
     pass
@@ -38,6 +41,7 @@ class ProductUpdate(BaseModel):
     quality_certification_metadata: Optional[str] = None
     status: Optional[str] = None
     image_url: Optional[str] = None
+    weight_kg_per_unit: Optional[float] = Field(None, gt=0)
 
 class ProductOut(ProductBase):
     id: str

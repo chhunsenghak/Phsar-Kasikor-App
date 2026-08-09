@@ -84,10 +84,7 @@ class PdfGeneratorService {
     final double totalAmount = (order['total_amount'] as num?)?.toDouble() ?? 0.0;
     final String currency = resolveOrderCurrency(order, state.products);
     final isPickup = (order['delivery_method'] ?? 'DELIVERY') == 'PICKUP';
-    // No delivery-fee column exists on the order yet, so this is reconstructed
-    // from today's flat-fee schedule rather than what was actually charged —
-    // it must still sum back to the backend's real total_amount.
-    final double deliveryFee = isPickup ? 0.0 : deliveryFeeFor(currency);
+    final double deliveryFee = (order['delivery_fee'] as num?)?.toDouble() ?? 0.0;
     final double subtotal = totalAmount - deliveryFee;
     final items = order['items'] as List<dynamic>? ?? [];
 

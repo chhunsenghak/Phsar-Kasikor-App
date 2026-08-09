@@ -7,7 +7,6 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
-import '../../services/api/order_api.dart';
 import '../../services/api/payment_api.dart';
 import '../common/order_contract_history_screen.dart';
 import 'order_tracking.dart';
@@ -88,36 +87,55 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
     return totals;
   }
 
+  /// Re-checks each currency's KHQR against Bakong and settles whichever
+  /// orders it actually confirms as paid. There is deliberately no path here
+  /// that marks an order PAID just because the buyer tapped this button —
+  /// only a verified Bakong result (or, separately, the seller's own
+  /// confirm-payment action) does that.
   Future<void> _settlePayment(AppState state) async {
     if (_isSettlingPayment || state.token == null) return;
 
     setState(() => _isSettlingPayment = true);
 
-    final List<PlacedOrder> stillUnsettled = [];
-    int settled = 0;
-
+    final Map<String, List<PlacedOrder>> unsettledByCurrency = {};
     for (final order in _unsettled) {
+      unsettledByCurrency.putIfAbsent(order.currency, () => []).add(order);
+    }
+
+    final Set<String> confirmedIds = {};
+    bool anyVerificationUnavailable = false;
+
+    for (final currency in unsettledByCurrency.keys) {
+      final md5 = _qrByCurrency[currency]?['md5']?.toString();
+      if (md5 == null) continue;
       try {
-        await OrderApi.updateOrder(
-          state.token!,
-          order.orderId,
-          paymentStatus: 'PAID',
-          orderStatus: 'CONFIRMED',
-        );
-        settled++;
+        final res = await PaymentApi.confirmKhqrPayment(state.token!, md5);
+        final status = res['status']?.toString();
+        if (status == 'paid') {
+          final ids = res['confirmed_order_ids'] as List<dynamic>? ?? [];
+          confirmedIds.addAll(ids.map((e) => e.toString()));
+        } else if (status == 'unavailable') {
+          anyVerificationUnavailable = true;
+        }
       } catch (_) {
-        stillUnsettled.add(order);
+        // Treated as not-yet-confirmed below; the user can just retry.
       }
     }
 
     if (!mounted) return;
+    final int settled = confirmedIds.length;
     setState(() {
       _isSettlingPayment = false;
-      _unsettled = stillUnsettled;
+      _unsettled = _unsettled.where((o) => !confirmedIds.contains(o.orderId)).toList();
     });
 
     if (settled == 0) {
-      AppSnackBar.error(context, state.translate('payment_settlement_failed'));
+      AppSnackBar.warning(
+        context,
+        anyVerificationUnavailable
+            ? state.translate('payment_check_unavailable')
+            : state.translate('payment_not_confirmed_yet'),
+      );
       return;
     }
 
@@ -132,7 +150,7 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
       }),
     );
 
-    if (stillUnsettled.isNotEmpty) {
+    if (_unsettled.isNotEmpty) {
       AppSnackBar.warning(context, state.translate('partial_order_failure', arguments: {
         'success': settled.toString(),
         'total': widget.orders.length.toString(),

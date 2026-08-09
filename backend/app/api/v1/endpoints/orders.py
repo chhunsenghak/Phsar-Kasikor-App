@@ -53,6 +53,13 @@ def read_order(
         raise HTTPException(status_code=403, detail=errors.NOT_AUTHORIZED)
     return db_order
 
+_ORDER_ERROR_STATUS = {
+    "NOT_AUTHORIZED": 403,
+    "INVALID_ORDER_STATUS_TRANSITION": 400,
+    "PAYMENT_NOT_CONFIRMED": 400,
+    "ORDER_ALREADY_PAID": 400,
+}
+
 @router.put("/{order_id}", response_model=OrderOut)
 def update_order(
     order_id: str,
@@ -61,14 +68,43 @@ def update_order(
     current_user: User = Depends(deps.get_current_user)
 ) -> Any:
     """
-    Modify order status or payment logs. Only transaction actors can update.
+    Advance the order's fulfillment stage (PLACED -> CONFIRMED -> SHIPPED ->
+    DELIVERED). Only the seller can do this — the buyer's only lever on
+    order state is /cancel. A KHQR order cannot be CONFIRMED until its
+    payment has actually been verified.
     """
     db_order = order_service.get_order(db, order_id=order_id)
     if not db_order:
         raise HTTPException(status_code=404, detail=errors.ORDER_NOT_FOUND)
-    if db_order.buyer_id != current_user.id and db_order.seller_id != current_user.id:
-        raise HTTPException(status_code=403, detail=errors.NOT_AUTHORIZED)
-    return order_service.update_order(db, db_order=db_order, order_update=order_update)
+    try:
+        return order_service.update_order_status(
+            db, db_order=db_order, order_update=order_update, actor_id=current_user.id
+        )
+    except Exception as e:
+        code = str(e)
+        raise HTTPException(status_code=_ORDER_ERROR_STATUS.get(code, 400), detail=code)
+
+@router.post("/{order_id}/confirm-payment", response_model=OrderOut)
+def confirm_order_payment(
+    order_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Seller-side manual confirmation that payment for this order was
+    received. This is the fallback for when automatic Bakong verification
+    isn't configured — it deliberately cannot be called by the buyer, since
+    letting the payer confirm their own payment is exactly the hole this
+    closes.
+    """
+    db_order = order_service.get_order(db, order_id=order_id)
+    if not db_order:
+        raise HTTPException(status_code=404, detail=errors.ORDER_NOT_FOUND)
+    try:
+        return order_service.confirm_payment_by_seller(db, db_order=db_order, actor_id=current_user.id)
+    except Exception as e:
+        code = str(e)
+        raise HTTPException(status_code=_ORDER_ERROR_STATUS.get(code, 400), detail=code)
 
 
 @router.post("/{order_id}/cancel", response_model=SuccessResponse)

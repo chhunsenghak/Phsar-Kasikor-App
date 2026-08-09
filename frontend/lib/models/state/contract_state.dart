@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../services/api/contract_api.dart';
+import '../../utils/api_error.dart';
 import 'base_app_state.dart';
 
 /// Maps a raw backend error code (from `app/core/errors.py`) returned by a
 /// contract action to a translated, user-facing message. Without this,
 /// failures surface as a bare enum string like
-/// "ONLY_SELLER_CAN_ACTIVATE_CONTRACT".
+/// "ONLY_SELLER_CAN_ACTIVATE_CONTRACT". Falls back to the shared API error
+/// map (see `utils/api_error.dart`) for codes with no contract-specific
+/// wording, so nothing here ever surfaces the raw code.
 String friendlyContractErrorMessage(BaseAppState state, String rawMessage) {
   switch (rawMessage) {
     case 'ONLY_SELLER_CAN_ACTIVATE_CONTRACT':
@@ -17,7 +20,7 @@ String friendlyContractErrorMessage(BaseAppState state, String rawMessage) {
     case 'CONTRACT_PRODUCT_OWNER_MISMATCH':
       return state.translate('error_contract_product_owner_mismatch');
     default:
-      return rawMessage;
+      return translateErrorCode(state, rawMessage);
   }
 }
 

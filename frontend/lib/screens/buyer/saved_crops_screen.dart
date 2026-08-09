@@ -6,6 +6,7 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../services/api/bookmark_api.dart';
+import '../../utils/api_error.dart';
 
 class SavedCropsScreen extends StatefulWidget {
   const SavedCropsScreen({super.key});
@@ -58,7 +59,7 @@ class _SavedCropsScreenState extends State<SavedCropsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        AppSnackBar.error(context, state.translate('error_prefix', arguments: {'error': e.toString()}));
+        AppSnackBar.error(context, friendlyApiError(state, e));
       }
     }
   }

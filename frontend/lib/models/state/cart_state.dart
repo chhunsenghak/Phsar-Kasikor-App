@@ -12,8 +12,41 @@ String formatCurrencyAmount(double amount, String currency) {
   return '\$${amount.toStringAsFixed(2)}';
 }
 
-/// Flat delivery fee charged once per order (i.e. once per seller/currency group).
-double deliveryFeeFor(String currency) => currency == 'KHR' ? 8000.0 : 2.0;
+/// Rough per-unit weight (kg) used only when a listing hasn't declared its
+/// own — mirrors the backend's own fallback table (order_service.py) so the
+/// pre-checkout estimate lands in the same range as what actually gets
+/// charged. Keyed by the frontend's lowercase unit strings.
+const Map<String, double> _defaultWeightKgPerUnit = {
+  'kg': 1.0,
+  'ton': 1000.0,
+  'bag': 50.0,
+  'hand': 5.0,
+};
+
+double _estimatedWeightKgFor(CartItem item) {
+  final perUnit = item.product.weightKgPerUnit ?? (_defaultWeightKgPerUnit[item.product.unit] ?? 1.0);
+  return perUnit * item.quantity;
+}
+
+/// The backend prices delivery from the seller's real address and the
+/// order's actual weight — neither of which is available here before an
+/// order exists. This is only a preview: same formula and fallback
+/// constants as the backend, but using an assumed average distance since
+/// the buyer's checkout screen has no route to the seller's coordinates.
+/// [CartGroup.total] and everything downstream of it is clearly labelled
+/// "estimated" for this reason; the authoritative number always comes from
+/// the backend once the order is created (see [PlacedOrder]).
+const double _previewDistanceKm = 15.0;
+
+double estimatedDeliveryFee(String currency, double weightKg) {
+  final ({double base, double perKm, double perKg, double min, double max}) pricing = currency == 'KHR'
+      ? (base: 4000.0, perKm: 200.0, perKg: 120.0, min: 4000.0, max: 100000.0)
+      : (base: 1.0, perKm: 0.05, perKg: 0.03, min: 1.0, max: 25.0);
+
+  final double fee = pricing.base + pricing.perKm * _previewDistanceKm + pricing.perKg * weightKg;
+  final double clamped = fee.clamp(pricing.min, pricing.max);
+  return currency == 'KHR' ? (clamped / 100).round() * 100.0 : double.parse(clamped.toStringAsFixed(2));
+}
 
 /// Resolves the currency a raw order record (as returned by [OrderApi]) is
 /// denominated in.
@@ -79,8 +112,11 @@ class CartGroup {
 
   double get subtotal => items.fold(0.0, (sum, item) => sum + item.itemTotal);
 
+  double get estimatedWeightKg => items.fold(0.0, (sum, item) => sum + _estimatedWeightKgFor(item));
+
+  /// A preview only — see [estimatedDeliveryFee].
   double deliveryFee(String deliveryMethod) =>
-      deliveryMethod == 'PICKUP' ? 0.0 : deliveryFeeFor(currency);
+      deliveryMethod == 'PICKUP' ? 0.0 : estimatedDeliveryFee(currency, estimatedWeightKg);
 
   double total(String deliveryMethod) => subtotal + deliveryFee(deliveryMethod);
 
@@ -93,39 +129,41 @@ class CartGroup {
 }
 
 /// A [CartGroup] that has been accepted by the backend as a real order.
+///
+/// total/deliveryFee always come from the backend's own record of the
+/// order, never re-derived client-side — that's what actually gets charged
+/// (the KHQR amount is generated from the backend's total_amount), so a
+/// locally-recomputed number could silently drift from it.
 class PlacedOrder {
   final String orderId;
   final CartGroup group;
   final String deliveryMethod;
-
-  /// Total as recorded by the backend. Set only when settling an order that was
-  /// created earlier, where the fee charged at the time is not recoverable —
-  /// the orders table stores a goods total with no delivery component.
-  final double? recordedTotal;
+  final double totalAmount;
+  final double deliveryFeeAmount;
 
   PlacedOrder({
     required this.orderId,
     required this.group,
     required this.deliveryMethod,
-  }) : recordedTotal = null;
+    required this.totalAmount,
+    required this.deliveryFeeAmount,
+  });
 
   /// For paying an order that already exists server-side.
   PlacedOrder.existing({
     required this.orderId,
     required this.group,
-    required double totalAmount,
+    required this.totalAmount,
+    required double deliveryFee,
     this.deliveryMethod = 'DELIVERY',
-  }) : recordedTotal = totalAmount;
+  }) : deliveryFeeAmount = deliveryFee;
 
-  /// False when the delivery fee is unknown, so the UI can omit the row rather
-  /// than invent a number.
-  bool get hasDeliveryFee => recordedTotal == null;
+  bool get hasDeliveryFee => deliveryFeeAmount > 0;
 
   String get currency => group.currency;
-  double get subtotal => recordedTotal ?? group.subtotal;
-  double get deliveryFee =>
-      recordedTotal == null ? group.deliveryFee(deliveryMethod) : 0.0;
-  double get total => recordedTotal ?? group.total(deliveryMethod);
+  double get subtotal => totalAmount - deliveryFeeAmount;
+  double get deliveryFee => deliveryFeeAmount;
+  double get total => totalAmount;
 }
 
 /// Groups [items] into one bucket per seller+currency — each bucket becomes one
