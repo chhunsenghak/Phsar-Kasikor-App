@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/dispute_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/custom_card.dart';
 
 class DisputesScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _DisputesScreenState extends State<DisputesScreen> {
       final list = await DisputeApi.fetchMyDisputes(state.token!);
       setState(() => _disputes = list);
     } catch (e) {
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      setState(() => _error = friendlyApiError(state, e));
     } finally {
       setState(() => _isLoading = false);
     }

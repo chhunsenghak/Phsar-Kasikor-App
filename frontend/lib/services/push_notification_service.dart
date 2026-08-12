@@ -10,9 +10,9 @@ class PushNotificationService {
   PushNotificationService._();
 
   static const _channelId = 'phsar_kasikor_default';
-  static const _channelName = 'AgriMarket Alerts';
+  static const _channelName = 'PhsarKasikor Alerts';
   static const _channelDescription =
-      'Order updates, messages, and other AgriMarket notifications';
+      'Order updates, messages, and other PhsarKasikor notifications';
 
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;

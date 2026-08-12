@@ -22,6 +22,10 @@ class MarketProduct {
   final String imageUrl;
   final bool isVerifiedFarmer;
   final String? sellerId;
+  /// How much one [unit] weighs, in kg — feeds the delivery-fee estimate.
+  /// Null when the farmer hasn't set it; a per-unit-type default is used
+  /// server-side in that case.
+  final double? weightKgPerUnit;
 
   MarketProduct({
     required this.id,
@@ -37,6 +41,7 @@ class MarketProduct {
     required this.imageUrl,
     this.isVerifiedFarmer = false,
     this.sellerId,
+    this.weightKgPerUnit,
   });
 
   String get formattedPrice {
@@ -62,38 +67,110 @@ class MarketProduct {
   }
 }
 
+/// One product line within a contract — a contract can bundle several of
+/// these (backend `ContractItem`s), unlike a plain order's cart items.
+class ContractLineItem {
+  final MarketProduct product;
+  final double agreedPrice;
+  final double agreedQuantity;
+
+  const ContractLineItem({
+    required this.product,
+    required this.agreedPrice,
+    required this.agreedQuantity,
+  });
+}
+
 class BidOffer {
   final String id;
-  final MarketProduct product;
+  List<ContractLineItem> items;
   final String buyerName;
+  // The backend's own record of the seller's name — authoritative even if a
+  // product on this contract has since been removed from [product]'s
+  // backing catalogue lookup (which would otherwise fall back to a generic
+  // placeholder). Prefer this over `product.farmerName` wherever "who is
+  // the seller on this contract" is what's actually meant.
+  final String sellerName;
   // Real backend user ids for the two parties — null for local-only mock
   // negotiations (logged-out browsing) that never became a real contract.
   // Needed to match "my" negotiation against the current user instead of a
   // hardcoded display name, and to know who's allowed to accept/reject.
   final String? buyerId;
   final String? sellerId;
-  double offeredPrice;
-  double quantity;
-  String status; // 'pending', 'accepted', 'counter_offered', 'rejected'
+  // Raw backend contract_status (DRAFT/PENDING_DEPOSIT/ACTIVE/COMPLETED/
+  // TERMINATED) — 'none' for a not-yet-proposed local placeholder. Prefer
+  // this over `status` in new code; `status` is a lossy 3-value mapping
+  // kept only because older call sites (status badges/colors) already
+  // switch on it and predate PENDING_DEPOSIT existing at all.
+  String contractStatus;
+  String status; // 'pending', 'pending_deposit', 'accepted', 'counter_offered', 'rejected', 'completed', 'none'
   List<String> chatMessages;
   // The forward delivery window a signed contract commits to — null for
   // bids/negotiations that haven't become a real backend contract yet.
   final DateTime? startDate;
   final DateTime? endDate;
+  // Booking deposit the seller requires before the contract is ACTIVE — all
+  // null until the seller accepts (see ContractStateMixin.acceptBid).
+  double? depositPercentage;
+  double? depositAmount;
+  String? depositCurrency;
+  String? depositStatus; // PENDING, PAID
+  // Final balance settlement — all null until the seller requests it (see
+  // ContractStateMixin.requestFinalPayment), which only happens once the
+  // contract is ACTIVE. deliveryFee is a plain seller-entered amount, never
+  // auto-calculated. finalAmount is the remaining balance + deliveryFee.
+  String? deliveryMethod; // DELIVERY, PICKUP
+  double? deliveryFee;
+  double? finalAmount;
+  String? finalPaymentStatus; // PENDING, PAID
+  // Set once the final payment clears — fulfillment (Confirm/Ship/Deliver,
+  // live tracking) then happens entirely through this real order instead
+  // of a second contract-specific implementation. Null until then.
+  String? fulfillmentOrderId;
 
   BidOffer({
     required this.id,
-    required this.product,
+    required this.items,
     required this.buyerName,
+    required this.sellerName,
     this.buyerId,
     this.sellerId,
-    required this.offeredPrice,
-    required this.quantity,
+    this.contractStatus = 'DRAFT',
     this.status = 'pending',
     required this.chatMessages,
     this.startDate,
     this.endDate,
+    this.depositPercentage,
+    this.depositAmount,
+    this.depositCurrency,
+    this.depositStatus,
+    this.deliveryMethod,
+    this.deliveryFee,
+    this.finalAmount,
+    this.finalPaymentStatus,
+    this.fulfillmentOrderId,
   });
+
+  /// True while the contract is still unresolved — not yet COMPLETED or
+  /// TERMINATED. Used to scope "View Contracts" from a specific chat to
+  /// still-relevant agreements with that counterparty.
+  bool get isOpen =>
+      contractStatus == 'DRAFT' ||
+      contractStatus == 'PENDING_DEPOSIT' ||
+      contractStatus == 'ACTIVE' ||
+      contractStatus == 'PENDING_FINAL_PAYMENT' ||
+      contractStatus == 'IN_FULFILLMENT';
+
+  double get totalValue => items.fold(0.0, (sum, i) => sum + i.agreedPrice * i.agreedQuantity);
+
+  // Backward-compatible single-item view over the first line — every
+  // pre-existing call site (contract PDF export, farmer dashboard bid
+  // stats, the single-price counter-offer field) keeps working unchanged;
+  // only the new multi-item builder/details UI needs to read `items`
+  // directly.
+  MarketProduct get product => items.first.product;
+  double get offeredPrice => items.first.agreedPrice;
+  double get quantity => items.first.agreedQuantity;
 }
 
 class FarmerVerification {

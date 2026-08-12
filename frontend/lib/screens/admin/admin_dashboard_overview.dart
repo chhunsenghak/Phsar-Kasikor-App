@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/dispute_api.dart';
+import '../../services/api/order_api.dart';
+import '../../services/api/contract_api.dart';
 import '../../widgets/custom_card.dart';
 import 'dispute_resolution_screen.dart';
+import 'payment_confirmation_screen.dart';
 
 class AdminDashboardOverviewScreen extends StatefulWidget {
   const AdminDashboardOverviewScreen({super.key});
@@ -16,11 +19,13 @@ class AdminDashboardOverviewScreen extends StatefulWidget {
 
 class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScreen> {
   int _openDisputeCount = 0;
+  int _pendingPaymentCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadDisputeCount();
+    _loadPendingPaymentCount();
   }
 
   Future<void> _loadDisputeCount() async {
@@ -32,6 +37,23 @@ class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScr
       setState(() {
         _openDisputeCount = disputes.where((d) => d['status'] == 'OPEN').length;
       });
+    } catch (_) {
+      // Stat card just keeps showing 0 if this fails — not critical to the
+      // rest of the dashboard.
+    }
+  }
+
+  Future<void> _loadPendingPaymentCount() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    try {
+      final results = await Future.wait([
+        OrderApi.fetchPendingKhqrPayments(state.token!),
+        ContractApi.fetchPendingDeposits(state.token!),
+        ContractApi.fetchPendingFinalPayments(state.token!),
+      ]);
+      if (!mounted) return;
+      setState(() => _pendingPaymentCount = results[0].length + results[1].length + results[2].length);
     } catch (_) {
       // Stat card just keeps showing 0 if this fails — not critical to the
       // rest of the dashboard.
@@ -104,6 +126,18 @@ class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScr
                     context,
                     MaterialPageRoute(builder: (context) => const DisputeResolutionScreen()),
                   ).then((_) => _loadDisputeCount());
+                },
+              ),
+              _buildAdminStatCard(
+                label: state.translate('pending_payments'),
+                value: '$_pendingPaymentCount',
+                icon: Icons.qr_code_2_rounded,
+                color: Colors.blue.shade700,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PaymentConfirmationScreen()),
+                  ).then((_) => _loadPendingPaymentCount());
                 },
               ),
             ],

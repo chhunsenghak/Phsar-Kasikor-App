@@ -16,6 +16,10 @@ class Product(Base):
     unit_type = Column(String, nullable=False) # e.g. Kilogram, Sack, Ton
     currency = Column(String, default="USD", nullable=False) # USD or KHR
     quantity_available = Column(Numeric(10, 2), nullable=False)
+    # How much one unit_type unit weighs, e.g. 50.0 for a SACK of rice.
+    # Nullable — a farmer who hasn't set this yet falls back to a rough
+    # per-unit-type default when pricing delivery (see order_service).
+    weight_kg_per_unit = Column(Numeric(10, 2), nullable=True)
     harvest_date = Column(Date, nullable=True)
     quality_certification_metadata = Column(Text, nullable=True)
     status = Column(String, default="active", nullable=False) # active, inactive, deleted

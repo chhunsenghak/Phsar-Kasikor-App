@@ -66,7 +66,7 @@ class _AppShellState extends State<AppShell> {
             ),
             const SizedBox(width: 8),
             Text(
-              'AgriMarket',
+              'Phsar Kasikor',
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

@@ -11,6 +11,7 @@ import '../buyer/market_price_tracker.dart';
 import '../buyer/community_portal.dart';
 import '../common/order_contract_history_screen.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../utils/api_error.dart';
 import 'improved_add_new_product.dart';
 
 class FarmerProductHubScreen extends StatefulWidget {
@@ -603,12 +604,7 @@ class _MyProductsTabState extends State<_MyProductsTab> {
             true,
           );
         } else {
-          final bool hasRelated = error.contains('PRODUCT_HAS_RELATED_INFO');
-          final displayMsg = hasRelated
-              ? state.translate('product_has_related_info')
-              : error;
-
-          AppSnackBar.error(context, displayMsg);
+          AppSnackBar.error(context, translateErrorCode(state, error));
         }
       }
     }

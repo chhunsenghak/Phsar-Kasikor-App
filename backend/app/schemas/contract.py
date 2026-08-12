@@ -5,7 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class ContractStatus(str, enum.Enum):
     DRAFT = "DRAFT"
+    PENDING_DEPOSIT = "PENDING_DEPOSIT"
     ACTIVE = "ACTIVE"
+    PENDING_FINAL_PAYMENT = "PENDING_FINAL_PAYMENT"
+    IN_FULFILLMENT = "IN_FULFILLMENT"
     COMPLETED = "COMPLETED"
     TERMINATED = "TERMINATED"
 
@@ -50,11 +53,28 @@ class ContractUpdate(BaseModel):
     end_date: Optional[datetime] = None
     contract_status: Optional[ContractStatus] = None
     items: Optional[List[ContractItemCreate]] = None
+    # Required (0 < pct <= 100) when the seller transitions DRAFT ->
+    # PENDING_DEPOSIT — see contract_service.update_contract.
+    deposit_percentage: Optional[float] = Field(None, gt=0, le=100)
+    # Required when the seller transitions ACTIVE -> PENDING_FINAL_PAYMENT —
+    # see contract_service.update_contract. delivery_fee is only required
+    # (and only meaningful) when delivery_method == "DELIVERY".
+    delivery_method: Optional[str] = None
+    delivery_fee: Optional[float] = Field(None, ge=0)
 
 class ContractOut(ContractBase):
     id: str
     buyer_name: Optional[str] = None
     seller_name: Optional[str] = None
     items: List[ContractItemOut]
+    deposit_percentage: Optional[float] = None
+    deposit_amount: Optional[float] = None
+    deposit_status: Optional[str] = None
+    deposit_currency: Optional[str] = None
+    delivery_method: Optional[str] = None
+    delivery_fee: Optional[float] = None
+    final_amount: Optional[float] = None
+    final_payment_status: Optional[str] = None
+    fulfillment_order_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

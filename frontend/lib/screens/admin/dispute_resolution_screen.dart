@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/dispute_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
@@ -38,7 +39,7 @@ class _DisputeResolutionScreenState extends State<DisputeResolutionScreen> {
       final list = await DisputeApi.fetchAllDisputes(state.token!);
       setState(() => _disputes = list);
     } catch (e) {
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      setState(() => _error = friendlyApiError(state, e));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -111,7 +112,7 @@ class _DisputeResolutionScreenState extends State<DisputeResolutionScreen> {
                       } catch (e) {
                         if (!dialogContext.mounted) return;
                         setDialogState(() => isSubmitting = false);
-                        AppSnackBar.error(dialogContext, e.toString().replaceFirst('Exception: ', ''));
+                        AppSnackBar.error(dialogContext, friendlyApiError(state, e));
                       }
                     },
               child: Text(asRefund ? state.translate('resolve_refund') : state.translate('resolve_reject')),

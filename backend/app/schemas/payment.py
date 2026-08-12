@@ -11,3 +11,7 @@ class KHQROut(BaseModel):
 
 class PaymentStatusOut(BaseModel):
     status: str  # paid, unpaid, unavailable
+
+class PaymentConfirmOut(BaseModel):
+    status: str  # paid, unpaid, unavailable
+    confirmed_order_ids: List[str] = []

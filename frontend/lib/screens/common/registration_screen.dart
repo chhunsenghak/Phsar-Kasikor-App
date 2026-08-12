@@ -8,6 +8,7 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_input.dart';
 import 'app_shell.dart';
 import '../../services/api/auth_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
 
 class RegistrationScreen extends StatefulWidget {
@@ -39,6 +40,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
+      final state = Provider.of<AppState>(context, listen: false);
       setState(() {
         _isLoading = true;
       });
@@ -63,7 +65,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         final userProfile = await AuthApi.fetchUserProfile(token);
 
         if (mounted) {
-          final state = Provider.of<AppState>(context, listen: false);
           state.loginWithProfile(token, userProfile);
 
           Navigator.pushAndRemoveUntil(
@@ -77,7 +78,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           setState(() {
             _isLoading = false;
           });
-          AppSnackBar.error(context, e.toString().replaceAll('Exception: ', ''));
+          AppSnackBar.error(context, friendlyApiError(state, e));
         }
       }
     }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/cooperative_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/app_snackbar.dart';
@@ -174,7 +175,7 @@ class _CoopInvitationsBannerState extends State<_CoopInvitationsBanner> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+      AppSnackBar.error(context, friendlyApiError(state, e));
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/app_state.dart';
+import '../utils/phnom_penh_time.dart';
 import 'web_download.dart';
 
 class PdfGeneratorService {
@@ -38,36 +39,12 @@ class PdfGeneratorService {
     );
   }
 
-  /// Cambodia local date + time (12-hour clock, AM/PM) — the same UTC+7
-  /// convention used by the in-app order/notification screens, so a PDF
-  /// generated from an order never disagrees with what's shown on screen.
-  static String _formatDateTime(DateTime dateTime) {
-    final cambodia = dateTime.toUtc().add(const Duration(hours: 7));
-    final datePart =
-        '${cambodia.year.toString().padLeft(4, '0')}-${cambodia.month.toString().padLeft(2, '0')}-${cambodia.day.toString().padLeft(2, '0')}';
-    int hour = cambodia.hour;
-    final minute = cambodia.minute.toString().padLeft(2, '0');
-    final ampm = hour >= 12 ? 'PM' : 'AM';
-    hour = hour % 12;
-    if (hour == 0) hour = 12;
-    final hourStr = hour.toString().padLeft(2, '0');
-    return '$datePart $hourStr:$minute $ampm';
-  }
-
-  /// Parses a `created_at` value from the backend — a naive UTC timestamp
-  /// with no offset — into Cambodia local date + time.
+  /// Parses a `created_at` value from the backend into Cambodia local date +
+  /// time — see utils/phnom_penh_time.dart for why this can't just call
+  /// `.toLocal()` on the backend's naive-UTC timestamp string.
   static String _formatBackendDateTime(String? raw) {
-    if (raw == null) return _formatDateTime(DateTime.now());
-    try {
-      String cleaned = raw.trim().replaceAll(' ', 'T');
-      if (!cleaned.endsWith('Z') &&
-          !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(cleaned)) {
-        cleaned += 'Z';
-      }
-      return _formatDateTime(DateTime.parse(cleaned));
-    } catch (_) {
-      return raw.split('T').first;
-    }
+    if (raw == null) return formatPhnomPenhDateTimeFromLocal(DateTime.now());
+    return formatPhnomPenhDateTime(raw);
   }
 
   /// Generate Invoice PDF for an Order
@@ -84,10 +61,7 @@ class PdfGeneratorService {
     final double totalAmount = (order['total_amount'] as num?)?.toDouble() ?? 0.0;
     final String currency = resolveOrderCurrency(order, state.products);
     final isPickup = (order['delivery_method'] ?? 'DELIVERY') == 'PICKUP';
-    // No delivery-fee column exists on the order yet, so this is reconstructed
-    // from today's flat-fee schedule rather than what was actually charged —
-    // it must still sum back to the backend's real total_amount.
-    final double deliveryFee = isPickup ? 0.0 : deliveryFeeFor(currency);
+    final double deliveryFee = (order['delivery_fee'] as num?)?.toDouble() ?? 0.0;
     final double subtotal = totalAmount - deliveryFee;
     final items = order['items'] as List<dynamic>? ?? [];
 
@@ -109,7 +83,7 @@ class PdfGeneratorService {
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
-                        'AgriMarket',
+                        'PhsarKasikor',
                         style: pw.TextStyle(
                           fontSize: 24,
                           fontWeight: pw.FontWeight.bold,
@@ -317,7 +291,7 @@ class PdfGeneratorService {
               pw.SizedBox(height: 6),
               pw.Center(
                 child: pw.Text(
-                  'Thank you for shopping on AgriMarket - Empowering Local Cambodian Farmers.',
+                  'Thank you for shopping on PhsarKasikor - Empowering Local Cambodian Farmers.',
                   style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
                 ),
               ),
@@ -342,7 +316,7 @@ class PdfGeneratorService {
     final totalVal = contract.offeredPrice * contract.quantity;
     // BidOffer carries no creation timestamp, so this reflects when the PDF
     // itself was generated rather than when the agreement was struck.
-    final dateStr = _formatDateTime(DateTime.now());
+    final dateStr = formatPhnomPenhDateTimeFromLocal(DateTime.now());
 
     pdf.addPage(
       pw.Page(
@@ -360,7 +334,7 @@ class PdfGeneratorService {
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
-                        'AgriMarket',
+                        'PhsarKasikor',
                         style: pw.TextStyle(
                           fontSize: 24,
                           fontWeight: pw.FontWeight.bold,
@@ -442,7 +416,7 @@ class PdfGeneratorService {
                           pw.Text('SELLER / PRODUCER', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                           pw.SizedBox(height: 4),
                           pw.Text(
-                            _cleanText(contract.product.farmerName.isNotEmpty ? contract.product.farmerName : 'Verified Farmer'),
+                            _cleanText(contract.sellerName.isNotEmpty ? contract.sellerName : 'Verified Farmer'),
                             style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
                           ),
                         ],
@@ -486,7 +460,7 @@ class PdfGeneratorService {
                   borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
                 ),
                 child: pw.Text(
-                  'Agreement Status: ${contract.status.toUpperCase()} - Bound by AgriMarket Wholesale Negotiation Protocol.',
+                  'Agreement Status: ${contract.status.toUpperCase()} - Bound by PhsarKasikor Wholesale Negotiation Protocol.',
                   style: pw.TextStyle(
                     fontSize: 10,
                     fontWeight: pw.FontWeight.bold,
@@ -528,7 +502,7 @@ class PdfGeneratorService {
                       ),
                       pw.SizedBox(height: 4),
                       pw.Text(
-                        'Seller Signature: ${_cleanText(contract.product.farmerName.isNotEmpty ? contract.product.farmerName : 'Verified Farmer')}',
+                        'Seller Signature: ${_cleanText(contract.sellerName.isNotEmpty ? contract.sellerName : 'Verified Farmer')}',
                         style: const pw.TextStyle(fontSize: 9),
                       ),
                     ],
@@ -543,7 +517,7 @@ class PdfGeneratorService {
               pw.SizedBox(height: 6),
               pw.Center(
                 child: pw.Text(
-                  'AgriMarket Platform - Official Direct Farm Contract Copy.',
+                  'PhsarKasikor Platform - Official Direct Farm Contract Copy.',
                   style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
                 ),
               ),

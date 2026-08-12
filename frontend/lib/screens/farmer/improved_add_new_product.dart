@@ -10,6 +10,7 @@ import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../services/api/upload_api.dart';
+import '../../utils/api_error.dart';
 
 class ImprovedAddNewProductScreen extends StatefulWidget {
   final MarketProduct? product;
@@ -25,6 +26,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
   final _priceController = TextEditingController();
   final _qtyController = TextEditingController();
   final _descController = TextEditingController();
+  final _weightController = TextEditingController();
 
   String _selectedCategory = 'Grains';
   String _selectedUnit = 'kg';
@@ -46,6 +48,9 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
       _selectedUnit = widget.product!.unit;
       _selectedCurrency = widget.product!.currency;
       _uploadedImageUrl = widget.product!.imageUrl;
+      if (widget.product!.weightKgPerUnit != null) {
+        _weightController.text = widget.product!.weightKgPerUnit.toString();
+      }
     }
   }
 
@@ -55,6 +60,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
     _priceController.dispose();
     _qtyController.dispose();
     _descController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
@@ -88,6 +94,7 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
       final price = double.tryParse(_priceController.text) ?? 1.0;
       final qty = double.tryParse(_qtyController.text) ?? 100.0;
       final desc = _descController.text;
+      final weightKgPerUnit = double.tryParse(_weightController.text);
       final state = Provider.of<AppState>(context, listen: false);
       final location = state.userProfile?['province']?.toString() ?? 'Battambang';
 
@@ -132,22 +139,25 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
         imageUrl: finalImageUrl,
         isVerifiedFarmer: true,
         sellerId: widget.product?.sellerId,
+        weightKgPerUnit: weightKgPerUnit,
       );
 
-      if (widget.product != null) {
-        await state.updateProduct(widget.product!.id, updatedProduct);
-      } else {
-        await state.addProduct(updatedProduct);
-      }
+      final String? errorCode = widget.product != null
+          ? await state.updateProduct(widget.product!.id, updatedProduct)
+          : await state.addProduct(updatedProduct);
 
       setState(() {
         _isUploading = false;
       });
 
       if (!mounted) return;
+
+      if (errorCode != null) {
+        AppSnackBar.error(context, translateErrorCode(state, errorCode));
+        return;
+      }
+
       Navigator.pop(context);
-      
-      // Product successfully saved and popped back silently.
     }
   }
 
@@ -201,6 +211,8 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
               _buildCurrencySelection(),
               const SizedBox(height: 16),
               _buildStockField(),
+              const SizedBox(height: 16),
+              _buildWeightField(),
               const SizedBox(height: 16),
               _buildDescriptionField(),
               const SizedBox(height: 32),
@@ -522,6 +534,26 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
       validator: (value) {
         if (value == null || double.tryParse(value) == null) {
           return state.translate('enter_valid_stock');
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildWeightField() {
+    final state = Provider.of<AppState>(context);
+    return CustomInput(
+      label: state.translate('weight_per_unit'),
+      hintText: state.translate('weight_per_unit_hint'),
+      controller: _weightController,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+      ],
+      validator: (value) {
+        if (value == null || value.isEmpty) return null;
+        if (double.tryParse(value) == null) {
+          return state.translate('enter_valid_weight');
         }
         return null;
       },

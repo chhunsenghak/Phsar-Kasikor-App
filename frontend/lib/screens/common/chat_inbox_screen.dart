@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/chat_api.dart';
+import '../../utils/api_error.dart';
+import '../../utils/phnom_penh_time.dart';
+import '../../utils/visibility_listener.dart';
+import '../../widgets/user_avatar.dart';
 import 'chat_thread_screen.dart';
 
 class ChatInboxScreen extends StatefulWidget {
@@ -13,54 +18,61 @@ class ChatInboxScreen extends StatefulWidget {
   State<ChatInboxScreen> createState() => _ChatInboxScreenState();
 }
 
-class _ChatInboxScreenState extends State<ChatInboxScreen> {
+class _ChatInboxScreenState extends State<ChatInboxScreen> with WidgetsBindingObserver {
   List<dynamic> _conversations = [];
   bool _isLoading = true;
   String? _error;
+  Timer? _pollTimer;
+  int _loadSequence = 0;
+  VisibilityCancel? _cancelVisibilityListener;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _cancelVisibilityListener = onPageVisible(() => _load(silent: true));
     _load();
+    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cancelVisibilityListener?.call();
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Same reasoning as chat_thread_screen.dart — a background tab/app can
+    // throttle or pause this timer, so catch up immediately on resume
+    // instead of waiting for the next tick.
+    if (state == AppLifecycleState.resumed) {
+      _load(silent: true);
+    }
+  }
+
+  Future<void> _load({bool silent = false}) async {
     final state = Provider.of<AppState>(context, listen: false);
     if (state.token == null) return;
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    final int requestId = ++_loadSequence;
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
     try {
       final list = await ChatApi.fetchConversations(state.token!);
-      setState(() {
-        _conversations = list;
-      });
+      if (!mounted || requestId != _loadSequence) return;
+      setState(() => _conversations = list);
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
+      if (!mounted || silent || requestId != _loadSequence) return;
+      setState(() => _error = friendlyApiError(state, e));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted && !silent) setState(() => _isLoading = false);
     }
-  }
-
-  String _dateText(dynamic createdAt) {
-    final dt = DateTime.tryParse(createdAt?.toString() ?? '');
-    if (dt == null) return '';
-    final cambodia = dt.toUtc().add(const Duration(hours: 7));
-    final now = DateTime.now().toUtc().add(const Duration(hours: 7));
-    if (cambodia.year == now.year && cambodia.month == now.month && cambodia.day == now.day) {
-      int hour = cambodia.hour;
-      final minute = cambodia.minute.toString().padLeft(2, '0');
-      final ampm = hour >= 12 ? 'PM' : 'AM';
-      hour = hour % 12;
-      if (hour == 0) hour = 12;
-      return '$hour:$minute $ampm';
-    }
-    return '${cambodia.year}-${cambodia.month.toString().padLeft(2, '0')}-${cambodia.day.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -98,8 +110,16 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.forum_outlined, size: 48, color: AppColors.outlineVariant),
-                            const SizedBox(height: 12),
+                            Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceContainerLow,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.forum_outlined, size: 40, color: AppColors.outlineVariant),
+                            ),
+                            const SizedBox(height: 14),
                             Text(
                               state.translate('no_conversations_yet'),
                               textAlign: TextAlign.center,
@@ -118,16 +138,13 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                         itemBuilder: (context, index) {
                           final convo = _conversations[index];
                           final int unread = (convo['unread_count'] as num?)?.toInt() ?? 0;
+                          final String otherUserId = convo['other_user_id']?.toString() ?? '';
+                          final String otherUserName = convo['other_user_name']?.toString() ?? '';
                           return ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            leading: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(color: AppColors.secondaryContainer, shape: BoxShape.circle),
-                              child: const Icon(Icons.person_outline_rounded, color: AppColors.onSecondaryContainer),
-                            ),
+                            leading: UserAvatar(name: otherUserName, seed: otherUserId, radius: 24),
                             title: Text(
-                              convo['other_user_name']?.toString() ?? '',
+                              otherUserName,
                               style: GoogleFonts.inter(
                                 fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w600,
                                 fontSize: 15,
@@ -149,7 +166,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  _dateText(convo['last_message_at']),
+                                  formatPhnomPenhSmartDate(convo['last_message_at']?.toString()),
                                   style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
                                 ),
                                 if (unread > 0) ...[
@@ -173,8 +190,8 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => ChatThreadScreen(
-                                    otherUserId: convo['other_user_id'].toString(),
-                                    otherUserName: convo['other_user_name']?.toString() ?? '',
+                                    otherUserId: otherUserId,
+                                    otherUserName: otherUserName,
                                   ),
                                 ),
                               );

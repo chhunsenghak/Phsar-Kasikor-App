@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../services/api/auth_api.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
 import '../../widgets/app_snackbar.dart';
@@ -55,7 +56,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       AppSnackBar.success(context, state.translate('reset_code_sent_desc'));
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, e.toString().replaceFirst('Exception: ', ''));
+      AppSnackBar.error(context, friendlyApiError(state, e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -80,7 +81,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, e.toString().replaceFirst('Exception: ', ''));
+      AppSnackBar.error(context, friendlyApiError(state, e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

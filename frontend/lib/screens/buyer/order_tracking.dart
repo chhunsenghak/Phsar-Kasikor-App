@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../services/api/delivery_api.dart';
 import '../../services/api/order_api.dart';
+import '../../utils/api_error.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   final String orderId;
@@ -34,9 +39,17 @@ class OrderTrackingScreen extends StatefulWidget {
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   String _orderStatus = 'PLACED';
   String _paymentMethod = 'KHQR';
+  String _paymentStatus = 'PENDING';
   String _deliveryMethod = 'DELIVERY';
   bool _isLoading = false;
   Timer? _pollingTimer;
+
+  double? _destinationLat;
+  double? _destinationLng;
+  String? _destinationAddressText;
+  double? _transporterLat;
+  double? _transporterLng;
+  bool _isUpdatingLocation = false;
 
   final List<Map<String, String>> _steps = [
     {
@@ -102,18 +115,42 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
     try {
       final res = await OrderApi.fetchOrderDetails(state.token!, widget.orderId);
+      final String resolvedDeliveryMethod = (res['delivery_method'] ?? 'DELIVERY').toString();
+
+      // The transporter's live position lives on a separate record; only
+      // fetch it for DELIVERY orders, and don't let a hiccup here break the
+      // order-status refresh itself.
+      Map<String, dynamic>? deliveryRes;
+      if (resolvedDeliveryMethod == 'DELIVERY') {
+        try {
+          deliveryRes = await DeliveryApi.fetchForOrder(state.token!, widget.orderId);
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
           _orderStatus = res['order_status'] ?? 'PLACED';
           _paymentMethod = res['payment_method'] ?? 'KHQR';
-          _deliveryMethod = res['delivery_method'] ?? 'DELIVERY';
+          _paymentStatus = res['payment_status'] ?? 'PENDING';
+          _deliveryMethod = resolvedDeliveryMethod;
+          _destinationLat = (res['delivery_lat'] as num?)?.toDouble();
+          _destinationLng = (res['delivery_lng'] as num?)?.toDouble();
+          _destinationAddressText = res['delivery_address_text']?.toString();
+          _transporterLat = (deliveryRes?['current_location_lat'] as num?)?.toDouble();
+          _transporterLng = (deliveryRes?['current_location_lng'] as num?)?.toDouble();
 
           if (_paymentMethod == 'COD') {
             _steps[0]['title'] = 'step_order_confirmed';
             _steps[0]['desc'] = 'step_order_confirmed_desc';
-          } else {
+          } else if (_paymentStatus == 'PAID') {
             _steps[0]['title'] = 'step_payment_approved';
             _steps[0]['desc'] = 'step_payment_approved_desc';
+          } else {
+            // Every poll of this screen re-checks Bakong in the background
+            // (see order_service.get_order) — don't claim "verified" until
+            // that actually flips payment_status to PAID.
+            _steps[0]['title'] = 'step_payment_pending';
+            _steps[0]['desc'] = 'step_payment_pending_desc';
           }
 
           if (_deliveryMethod == 'PICKUP') {
@@ -259,6 +296,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 ],
               ),
             ),
+
+            if (_deliveryMethod == 'DELIVERY' && _destinationLat != null && _destinationLng != null) ...[
+              const SizedBox(height: 12),
+              _buildDeliveryMapCard(state),
+            ],
+
             const SizedBox(height: 24),
 
             if (_orderStatus == 'CANCELLED') ...[
@@ -462,7 +505,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       }
     } catch (e) {
       if (mounted) {
-        AppSnackBar.error(context, state.translate('failed_update_status', arguments: {'error': e.toString()}));
+        AppSnackBar.error(context, friendlyApiError(state, e));
       }
     } finally {
       if (mounted) {
@@ -470,6 +513,143 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           _isUpdating = false;
         });
       }
+    }
+  }
+
+  Widget _buildDeliveryMapCard(AppState state) {
+    final destination = LatLng(_destinationLat!, _destinationLng!);
+    final hasTransporter = _transporterLat != null && _transporterLng != null;
+    final transporter = hasTransporter ? LatLng(_transporterLat!, _transporterLng!) : null;
+
+    return CustomCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Text(
+              state.translate('delivery_tracking_map'),
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppDesign.borderRadiusSm)),
+            child: SizedBox(
+              height: 220,
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: transporter ?? destination,
+                  initialZoom: 14.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                  ),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.phsar_kasikor_app',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: destination,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_pin, size: 36, color: AppColors.error),
+                      ),
+                      if (transporter != null)
+                        Marker(
+                          point: transporter,
+                          width: 40,
+                          height: 40,
+                          child: const Icon(Icons.local_shipping_rounded, size: 30, color: AppColors.primary),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.location_pin, size: 14, color: AppColors.error),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _destinationAddressText?.isNotEmpty == true
+                            ? '${state.translate('destination_pin')}: $_destinationAddressText'
+                            : state.translate('destination_pin'),
+                        style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
+                ),
+                if (!hasTransporter) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    state.translate('no_live_location_yet'),
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
+                  ),
+                ],
+                if (state.currentRole == 'farmer' && _orderStatus == 'SHIPPED') ...[
+                  const SizedBox(height: 12),
+                  CustomButton.outline(
+                    text: state.translate('update_my_location'),
+                    icon: Icons.my_location_rounded,
+                    isLoading: _isUpdatingLocation,
+                    onPressed: _isUpdatingLocation ? null : () => _updateMyLocation(state),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateMyLocation(AppState state) async {
+    if (state.token == null) return;
+    setState(() => _isUpdatingLocation = true);
+    try {
+      bool enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) throw Exception('SERVICE_DISABLED');
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        if (mounted) AppSnackBar.warning(context, state.translate('location_permission_denied'));
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      await DeliveryApi.updateLocation(
+        state.token!,
+        widget.orderId,
+        lat: position.latitude,
+        lng: position.longitude,
+      );
+      await _fetchOrderStatus(silent: true);
+      if (mounted) AppSnackBar.success(context, state.translate('location_updated'));
+    } catch (e) {
+      if (mounted) {
+        final message = extractApiErrorCode(e) == 'SERVICE_DISABLED'
+            ? state.translate('location_services_disabled')
+            : friendlyApiError(state, e);
+        AppSnackBar.error(context, message);
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdatingLocation = false);
     }
   }
 }

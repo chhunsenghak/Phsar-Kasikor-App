@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.chat import ChatMessage
 from app.models.user import User
 from app.schemas.chat import ChatMessageCreate
-from app.schemas.notification import NotificationCreate
-from app.services import notification_service
+from app.services import push_service
 
 def create_message(db: Session, message_in: ChatMessageCreate, sender_id: str) -> ChatMessage:
     db_message = ChatMessage(
@@ -16,16 +15,18 @@ def create_message(db: Session, message_in: ChatMessageCreate, sender_id: str) -
     db.commit()
     db.refresh(db_message)
 
-    # Trigger system notification to receiver
+    # A new message gets a push banner like any other notification, but must
+    # not persist to the notifications table — the chat inbox (unread counts,
+    # conversation list) is already this app's "list" for messages, so a
+    # duplicate entry in the general notification list would be redundant
+    # clutter. send_push() is used directly instead of
+    # notification_service.create_notification() for exactly this reason.
     try:
-        notification_service.create_notification(
+        push_service.send_push(
             db,
-            notification_in=NotificationCreate(
-                user_id=message_in.receiver_id,
-                title="New Message",
-                message=f"New message: {db_message.message_text[:30]}...",
-                is_read=False
-            )
+            user_id=message_in.receiver_id,
+            title="New Message",
+            body=f"New message: {db_message.message_text[:30]}...",
         )
     except Exception:
         pass

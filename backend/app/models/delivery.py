@@ -12,7 +12,7 @@ class Delivery(Base):
     transporter_name = Column(String, nullable=True)
     current_location_lat = Column(Numeric(10, 8), nullable=True)
     current_location_lng = Column(Numeric(11, 8), nullable=True)
-    delivery_status = Column(String, default="dispatched", nullable=False) # dispatched, in_transit, arrived, failed
+    delivery_status = Column(String, default="pending", nullable=False) # pending, in_transit, arrived, failed
     estimated_time_of_arrival = Column(DateTime, nullable=True)
 
     # Relationships
