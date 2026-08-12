@@ -384,6 +384,12 @@ def update_order_status(db: Session, db_order: Order, order_update: OrderUpdate,
     delivery = db.query(Delivery).filter(Delivery.order_id == db_order.id).first()
     if new_status == "SHIPPED" and delivery:
         delivery.delivery_status = "in_transit"
+        if order_update.contact_phone is not None:
+            delivery.contact_phone = order_update.contact_phone
+        if order_update.delivery_notes is not None:
+            delivery.delivery_notes = order_update.delivery_notes
+        if order_update.actual_delivery_cost is not None:
+            delivery.actual_delivery_cost = order_update.actual_delivery_cost
     elif new_status == "DELIVERED":
         if delivery:
             delivery.delivery_status = "arrived"

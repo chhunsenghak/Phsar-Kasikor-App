@@ -39,3 +39,25 @@ class Product(Base):
     # Relationships
     seller = relationship("User", backref="products")
     category = relationship("Category", back_populates="products")
+
+    # Frontend already reads seller_name/seller_province off every product
+    # (product_state.dart) and previously silently fell back to generic
+    # placeholders because ProductOut never actually sent them — same
+    # delegate-to-the-relationship pattern as Contract.buyer_name/seller_name.
+    # seller_latitude/longitude feed real distance calculations (see
+    # farm_map_directory.dart) instead of a fabricated number.
+    @property
+    def seller_name(self):
+        return self.seller.username if self.seller else None
+
+    @property
+    def seller_province(self):
+        return self.seller.province if self.seller else None
+
+    @property
+    def seller_latitude(self):
+        return self.seller.latitude if self.seller else None
+
+    @property
+    def seller_longitude(self):
+        return self.seller.longitude if self.seller else None

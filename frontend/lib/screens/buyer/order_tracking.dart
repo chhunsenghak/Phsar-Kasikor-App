@@ -13,6 +13,7 @@ import '../../widgets/app_snackbar.dart';
 import '../../services/api/delivery_api.dart';
 import '../../services/api/order_api.dart';
 import '../../utils/api_error.dart';
+import '../../widgets/ship_order_dialog.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   final String orderId;
@@ -49,6 +50,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   String? _destinationAddressText;
   double? _transporterLat;
   double? _transporterLng;
+  String? _deliveryContactPhone;
+  String? _deliveryNotes;
   bool _isUpdatingLocation = false;
 
   final List<Map<String, String>> _steps = [
@@ -138,6 +141,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           _destinationAddressText = res['delivery_address_text']?.toString();
           _transporterLat = (deliveryRes?['current_location_lat'] as num?)?.toDouble();
           _transporterLng = (deliveryRes?['current_location_lng'] as num?)?.toDouble();
+          _deliveryContactPhone = deliveryRes?['contact_phone']?.toString();
+          _deliveryNotes = deliveryRes?['delivery_notes']?.toString();
 
           if (_paymentMethod == 'COD') {
             _steps[0]['title'] = 'step_order_confirmed';
@@ -302,6 +307,51 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               _buildDeliveryMapCard(state),
             ],
 
+            if ((_deliveryContactPhone?.isNotEmpty ?? false) || (_deliveryNotes?.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 12),
+              CustomCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      state.translate('delivery_contact_info_title'),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.onSurface),
+                    ),
+                    if (_deliveryContactPhone?.isNotEmpty ?? false) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.phone_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            _deliveryContactPhone!,
+                            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (_deliveryNotes?.isNotEmpty ?? false) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.notes_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _deliveryNotes!,
+                              style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 24),
 
             if (_orderStatus == 'CANCELLED') ...[
@@ -454,7 +504,17 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                   CustomButton(
                     text: _deliveryMethod == 'PICKUP' ? state.translate('mark_ready_pickup') : state.translate('ship_order'),
                     backgroundColor: AppColors.primary,
-                    onPressed: () => _updateStatus(state, 'SHIPPED'),
+                    onPressed: () => showShipOrderDialog(
+                      context,
+                      state,
+                      onConfirm: ({contactPhone, deliveryNotes, actualDeliveryCost}) => _updateStatus(
+                        state,
+                        'SHIPPED',
+                        contactPhone: contactPhone,
+                        deliveryNotes: deliveryNotes,
+                        actualDeliveryCost: actualDeliveryCost,
+                      ),
+                    ),
                   )
                 else if (_orderStatus == 'SHIPPED')
                   CustomButton(
@@ -481,7 +541,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
   bool _isUpdating = false;
 
-  Future<void> _updateStatus(AppState state, String nextStatus) async {
+  Future<void> _updateStatus(
+    AppState state,
+    String nextStatus, {
+    String? contactPhone,
+    String? deliveryNotes,
+    double? actualDeliveryCost,
+  }) async {
     if (state.token == null) return;
     setState(() {
       _isUpdating = true;
@@ -491,6 +557,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         state.token!,
         widget.orderId,
         orderStatus: nextStatus,
+        contactPhone: contactPhone,
+        deliveryNotes: deliveryNotes,
+        actualDeliveryCost: actualDeliveryCost,
       );
       state.addNotification(
         state.translate('order_status_updated'),

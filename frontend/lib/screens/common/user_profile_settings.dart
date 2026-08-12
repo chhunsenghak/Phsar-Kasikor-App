@@ -16,7 +16,7 @@ import '../../widgets/app_snackbar.dart';
 import 'login_screen.dart';
 import '../farmer/submit_certificate_screen.dart';
 import 'order_contract_history_screen.dart';
-import 'disputes_screen.dart';
+import 'help_disputes_screen.dart';
 
 class UserProfileSettingsScreen extends StatefulWidget {
   const UserProfileSettingsScreen({super.key});
@@ -1280,7 +1280,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const DisputesScreen()),
+                    MaterialPageRoute(builder: (context) => const HelpDisputesScreen()),
                   );
                 },
               ),

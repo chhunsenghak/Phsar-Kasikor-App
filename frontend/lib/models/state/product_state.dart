@@ -4,6 +4,12 @@ import '../../services/api/market_price_api.dart';
 import 'base_app_state.dart';
 
 mixin ProductStateMixin on BaseAppState {
+  // Abstract property implemented by LocationStateMixin sibling — resolves
+  // the raw province code the backend sends (e.g. "01") to a real
+  // localized place name, so every screen showing MarketProduct.location
+  // gets one consistent, human-readable value instead of a bare code.
+  Map<String, String> getProvincesMap();
+
   List<dynamic> _backendCategories = [];
   List<dynamic> get backendCategories => _backendCategories;
 
@@ -122,8 +128,10 @@ mixin ProductStateMixin on BaseAppState {
   Future<void> refreshProducts() async {
     try {
       final List<dynamic> backendProds = await ProductApi.fetchProducts();
+      final provincesMap = getProvincesMap();
       final List<MarketProduct> loaded = [];
       for (var json in backendProds) {
+        final String? provinceCode = json['seller_province']?.toString();
         loaded.add(MarketProduct(
           id: json['id'] ?? '',
           name: json['product_name'] ?? '',
@@ -133,12 +141,14 @@ mixin ProductStateMixin on BaseAppState {
           currency: json['currency'] ?? 'USD',
           quantity: (json['quantity_available'] as num?)?.toDouble() ?? 0.0,
           farmerName: json['seller_name'] ?? json['seller_username'] ?? 'Farmer',
-          location: json['seller_province'] ?? 'Cambodia',
+          location: (provinceCode != null ? provincesMap[provinceCode] : null) ?? provinceCode ?? 'Cambodia',
           description: json['quality_certification_metadata'] ?? 'No description.',
           imageUrl: json['image_url'] ?? 'https://images.unsplash.com/photo-1592982537447-7440770cbfc9?w=600',
           isVerifiedFarmer: true,
           sellerId: json['seller_id'],
           weightKgPerUnit: (json['weight_kg_per_unit'] as num?)?.toDouble(),
+          sellerLatitude: (json['seller_latitude'] as num?)?.toDouble(),
+          sellerLongitude: (json['seller_longitude'] as num?)?.toDouble(),
         ));
       }
       _products.clear();

@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
+import '../../services/api/review_api.dart';
+import '../../utils/geo_utils.dart';
 import '../../widgets/custom_card.dart';
 import 'farm_profile.dart';
 
@@ -16,11 +18,59 @@ class FarmMapDirectoryScreen extends StatefulWidget {
 class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
   String _selectedProvince = 'All';
   String _searchQuery = '';
+  bool _sortByNearest = false;
+
+  // sellerId -> {'average_rating': double, 'review_count': int}. Loaded once
+  // per unique seller in the current product list — real data from
+  // ReviewApi, never a fabricated star rating.
+  final Map<String, Map<String, dynamic>> _reviewSummaries = {};
+  bool _isLoadingSummaries = false;
+  String? _summariesLoadedForToken;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadReviewSummariesIfNeeded();
+  }
+
+  Future<void> _loadReviewSummariesIfNeeded() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    final token = state.token;
+    if (token == null || token == _summariesLoadedForToken || _isLoadingSummaries) return;
+
+    final sellerIds = state.products.map((p) => p.sellerId).whereType<String>().toSet();
+    if (sellerIds.isEmpty) return;
+
+    _isLoadingSummaries = true;
+    try {
+      final results = await Future.wait(sellerIds.map((id) async {
+        try {
+          final summary = await ReviewApi.fetchSellerReviewSummary(token, id);
+          return MapEntry(id, summary);
+        } catch (_) {
+          return null;
+        }
+      }));
+      if (!mounted) return;
+      setState(() {
+        for (final entry in results) {
+          if (entry != null) _reviewSummaries[entry.key] = entry.value;
+        }
+        _summariesLoadedForToken = token;
+      });
+    } finally {
+      _isLoadingSummaries = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
     final allProducts = state.products;
+
+    final double? myLat = (state.userProfile?['latitude'] as num?)?.toDouble();
+    final double? myLng = (state.userProfile?['longitude'] as num?)?.toDouble();
+    final bool myLocationKnown = myLat != null && myLng != null;
 
     // 1. Group products by farmerName
     final Map<String, List<MarketProduct>> farmerGroups = {};
@@ -44,22 +94,30 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
     extractedProvinces.addAll(['Battambang', 'Phnom Penh', 'Siem Reap', 'Kampot', 'Pursat']);
     final provincesList = extractedProvinces.toList();
 
-    // 3. Build dynamic producer models
+    // 3. Build dynamic producer models — distance and rating are real now:
+    // distance from the buyer's and seller's actual saved coordinates
+    // (haversineKm, same formula the backend uses for delivery pricing),
+    // rating from ReviewApi's real aggregate. Either can be genuinely
+    // unavailable (no saved address, no reviews yet) — shown honestly as
+    // such instead of ever falling back to a made-up number.
     final List<Map<String, dynamic>> producers = [];
     farmerGroups.forEach((farmerName, crops) {
       final firstCrop = crops.first;
       final loc = firstCrop.location.isNotEmpty
           ? firstCrop.location
           : '${state.translate('Battambang')}, ${state.translate('cambodia_fallback')}';
-      
+
       // Determine province tag
       final provTag = loc.split(',').last.trim();
 
-      // Dynamic distance calculation based on length/hash
-      final hash = farmerName.hashCode.abs();
-      final dist = (hash % 45) + 5; // e.g. 5 to 50 km
-      final estShip = (dist * 0.08).toStringAsFixed(2);
-      final rating = (4.5 + (hash % 6) * 0.1).toStringAsFixed(1);
+      double? distanceKm;
+      if (myLocationKnown && firstCrop.sellerLatitude != null && firstCrop.sellerLongitude != null) {
+        distanceKm = haversineKm(myLat, myLng, firstCrop.sellerLatitude!, firstCrop.sellerLongitude!);
+      }
+
+      final summary = firstCrop.sellerId != null ? _reviewSummaries[firstCrop.sellerId] : null;
+      final double? avgRating = (summary?['average_rating'] as num?)?.toDouble();
+      final int reviewCount = (summary?['review_count'] as num?)?.toInt() ?? 0;
 
       producers.add({
         'farmerName': farmerName,
@@ -68,25 +126,36 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
         'crops': crops,
         'cropCount': crops.length,
         'isVerified': firstCrop.isVerifiedFarmer,
-        'distance': '$dist km',
-        'shipping': '\$$estShip',
-        'rating': rating,
+        'distanceKm': distanceKm,
+        'averageRating': avgRating,
+        'reviewCount': reviewCount,
       });
     });
 
     // 4. Filter by selected province & search query
     final filteredProducers = producers.where((prod) {
-      final matchProvince = _selectedProvince == 'All' || 
+      final matchProvince = _selectedProvince == 'All' ||
                             prod['province'].toString().toLowerCase().contains(_selectedProvince.toLowerCase()) ||
                             prod['location'].toString().toLowerCase().contains(_selectedProvince.toLowerCase());
-      
+
       final matchSearch = _searchQuery.isEmpty ||
                           prod['farmerName'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
                           prod['location'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
                           (prod['crops'] as List<MarketProduct>).any((c) => c.name.toLowerCase().contains(_searchQuery.toLowerCase()));
-      
+
       return matchProvince && matchSearch;
     }).toList();
+
+    if (_sortByNearest && myLocationKnown) {
+      filteredProducers.sort((a, b) {
+        final da = a['distanceKm'] as double?;
+        final db = b['distanceKm'] as double?;
+        if (da == null && db == null) return 0;
+        if (da == null) return 1; // unknown distance sorts last
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -223,7 +292,29 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Nearest-first sort toggle — only meaningful once we actually
+            // know where the buyer is; disabled (not hidden, so it's clear
+            // why) otherwise rather than silently doing nothing.
+            Row(
+              children: [
+                Switch(
+                  value: _sortByNearest,
+                  onChanged: myLocationKnown ? (val) => setState(() => _sortByNearest = val) : null,
+                  activeTrackColor: AppColors.primary,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    myLocationKnown ? state.translate('sort_nearest_first') : state.translate('sort_nearest_unavailable'),
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
 
             // Producers Header
             Row(
@@ -271,6 +362,9 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
 
   Widget _buildFarmListItem(BuildContext context, AppState state, Map<String, dynamic> prod) {
     final List<MarketProduct> crops = prod['crops'];
+    final double? distanceKm = prod['distanceKm'] as double?;
+    final double? avgRating = prod['averageRating'] as double?;
+    final int reviewCount = prod['reviewCount'] as int;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -327,13 +421,21 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded, color: Colors.orange, size: 14),
-                          const SizedBox(width: 4),
-                          Text(prod['rating'], style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
-                          const SizedBox(width: 16),
-                          const Icon(Icons.local_shipping_outlined, color: AppColors.outline, size: 14),
-                          const SizedBox(width: 4),
-                          Text(state.translate('est_shipping_prefix', arguments: {'shipping': prod['shipping']}), style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline)),
+                          if (reviewCount > 0 && avgRating != null) ...[
+                            const Icon(Icons.star_rounded, color: Colors.orange, size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${avgRating.toStringAsFixed(1)} ($reviewCount)',
+                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ] else ...[
+                            Icon(Icons.star_border_rounded, color: AppColors.outline, size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              state.translate('new_seller_label'),
+                              style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -344,8 +446,15 @@ class _FarmMapDirectoryScreenState extends State<FarmMapDirectoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      prod['distance'],
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
+                      distanceKm != null
+                          ? state.translate('distance_km_value', arguments: {'km': distanceKm.toStringAsFixed(1)})
+                          : state.translate('distance_unavailable'),
+                      textAlign: TextAlign.end,
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        fontSize: distanceKm != null ? 13 : 10,
+                        color: distanceKm != null ? AppColors.primary : AppColors.outline,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(state.translate('crops_count', arguments: {'count': prod['cropCount'].toString()}), style: GoogleFonts.inter(fontSize: 10, color: AppColors.outline)),

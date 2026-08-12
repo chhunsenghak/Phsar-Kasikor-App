@@ -17,8 +17,11 @@ import 'chat_thread_screen.dart';
 import '../../services/pdf_generator_service.dart';
 import '../../utils/api_error.dart';
 import '../../utils/phnom_penh_time.dart';
+import '../../utils/numeric_input.dart' as numeric_input;
+import '../../utils/currency_format.dart' as currency_format;
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/ship_order_dialog.dart';
 
 class OrderContractHistoryScreen extends StatefulWidget {
   final int initialTab;
@@ -136,7 +139,13 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     }
   }
 
-  Future<void> _updateOrderStatus(String orderId, String nextStatus) async {
+  Future<void> _updateOrderStatus(
+    String orderId,
+    String nextStatus, {
+    String? contactPhone,
+    String? deliveryNotes,
+    double? actualDeliveryCost,
+  }) async {
     final state = Provider.of<AppState>(context, listen: false);
     if (state.token == null) return;
     try {
@@ -144,6 +153,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
         state.token!,
         orderId,
         orderStatus: nextStatus,
+        contactPhone: contactPhone,
+        deliveryNotes: deliveryNotes,
+        actualDeliveryCost: actualDeliveryCost,
       );
       await _loadOrders();
       if (mounted) {
@@ -270,22 +282,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     return confirmed == true;
   }
 
-  String _formatCurrency(num amount, [String currency = 'USD']) {
-    if (currency == 'KHR') {
-      final String val = amount
-          .toStringAsFixed(0)
-          .replaceAllMapped(
-            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-            (Match m) => '${m[1]},',
-          );
-      return '$val ៛';
-    }
-    final parts = amount.toStringAsFixed(2).split('.');
-    final RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    String mathFunc(Match match) => '${match[1]},';
-    final formattedInt = parts[0].replaceAllMapped(reg, mathFunc);
-    return '\$$formattedInt.${parts[1]}';
-  }
+  String _formatCurrency(num amount, [String currency = 'USD']) => currency_format.formatCurrency(amount, currency);
 
   /// Rebuilds the checkout view-model for an order that already exists, so the
   /// KHQR screen can settle it instead of placing a second one.
@@ -2363,21 +2360,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
   /// completely normal choice for this app's users, but `double.tryParse`
   /// only understands Western digits, so without this the field would
   /// silently fail to parse and look "stuck".
-  double? _parseNumericInput(String raw) {
-    const khmerDigits = '០១២៣៤៥៦៧៨៩';
-    final buffer = StringBuffer();
-    for (final ch in raw.trim().split('')) {
-      final khmerIndex = khmerDigits.indexOf(ch);
-      if (khmerIndex != -1) {
-        buffer.write(khmerIndex);
-      } else if (ch == ',') {
-        buffer.write('.');
-      } else {
-        buffer.write(ch);
-      }
-    }
-    return double.tryParse(buffer.toString());
-  }
+  double? _parseNumericInput(String raw) => numeric_input.parseNumericInput(raw);
 
   void _showAcceptWithDepositDialog(
     BuildContext sheetContext,
@@ -2717,8 +2700,23 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
           text: state.translate(next['label']!),
           backgroundColor: AppColors.primary,
           onPressed: () {
-            Navigator.pop(context);
-            _updateOrderStatus(order['id'], next['next']!);
+            Navigator.of(context).pop();
+            if (next['next'] == 'SHIPPED') {
+              if (!mounted) return;
+              showShipOrderDialog(
+                this.context,
+                state,
+                onConfirm: ({contactPhone, deliveryNotes, actualDeliveryCost}) => _updateOrderStatus(
+                  order['id'],
+                  'SHIPPED',
+                  contactPhone: contactPhone,
+                  deliveryNotes: deliveryNotes,
+                  actualDeliveryCost: actualDeliveryCost,
+                ),
+              );
+            } else {
+              _updateOrderStatus(order['id'], next['next']!);
+            }
           },
         );
       }

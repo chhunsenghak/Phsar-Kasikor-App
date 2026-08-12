@@ -26,6 +26,11 @@ class MarketProduct {
   /// Null when the farmer hasn't set it; a per-unit-type default is used
   /// server-side in that case.
   final double? weightKgPerUnit;
+  /// The seller's saved profile coordinates (from their address), for real
+  /// distance calculations — e.g. farm_map_directory.dart. Null when the
+  /// seller hasn't set a profile address yet.
+  final double? sellerLatitude;
+  final double? sellerLongitude;
 
   MarketProduct({
     required this.id,
@@ -42,6 +47,8 @@ class MarketProduct {
     this.isVerifiedFarmer = false,
     this.sellerId,
     this.weightKgPerUnit,
+    this.sellerLatitude,
+    this.sellerLongitude,
   });
 
   String get formattedPrice {

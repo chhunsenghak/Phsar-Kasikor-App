@@ -47,5 +47,9 @@ class ProductOut(ProductBase):
     id: str
     seller_id: str
     created_at: datetime
+    seller_name: Optional[str] = None
+    seller_province: Optional[str] = None
+    seller_latitude: Optional[float] = None
+    seller_longitude: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)

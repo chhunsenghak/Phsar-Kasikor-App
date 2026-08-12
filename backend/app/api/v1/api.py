@@ -4,7 +4,7 @@ from app.api.v1.endpoints import (
     auth, users, roles, products, categories, market_prices, orders, contracts,
     deliveries, notifications, chat, upload, locations, address_requests,
     farmer_certificates, bookmarks, forum, analytics, cooperatives, reports,
-    payments, reviews, disputes
+    payments, reviews, disputes, crop_diagnosis
 )
 
 api_router = APIRouter()
@@ -31,4 +31,5 @@ api_router.include_router(reports.router, prefix="/reports", tags=["Content Repo
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
 api_router.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
 api_router.include_router(disputes.router, prefix="/disputes", tags=["Disputes"])
+api_router.include_router(crop_diagnosis.router, prefix="/crop-diagnosis", tags=["Crop Diagnosis"])
 

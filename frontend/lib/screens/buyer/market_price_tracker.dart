@@ -62,8 +62,12 @@ class MarketPriceTrackerScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
+                      // There's no real aggregate index behind this yet (no
+                      // backend concept of a market-wide figure to compute
+                      // from) — say so plainly instead of showing an
+                      // invented date and percentage, like this used to.
                       Text(
-                        state.translate('updated_today', arguments: {'date': 'July 22, 2026'}),
+                        state.translate('market_index_coming_soon'),
                         style: GoogleFonts.inter(
                           color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 12,
@@ -72,12 +76,19 @@ class MarketPriceTrackerScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                Text(
-                  '+1.4%',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    state.translate('coming_soon_badge'),
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],

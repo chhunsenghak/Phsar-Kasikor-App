@@ -42,9 +42,9 @@ class OrderApi {
         'items': items,
         'payment_method': paymentMethod,
         'delivery_method': deliveryMethod,
-        if (deliveryAddressText != null) 'delivery_address_text': deliveryAddressText,
-        if (deliveryLat != null) 'delivery_lat': deliveryLat,
-        if (deliveryLng != null) 'delivery_lng': deliveryLng,
+        'delivery_address_text': ?deliveryAddressText,
+        'delivery_lat': ?deliveryLat,
+        'delivery_lng': ?deliveryLng,
       }),
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
@@ -77,15 +77,28 @@ class OrderApi {
   /// Advances the order's fulfillment stage. Seller-only on the backend —
   /// there is no `paymentStatus` parameter here anymore: payment_status is
   /// never settable by the buyer or seller directly, see [PaymentApi].
+  ///
+  /// [contactPhone]/[deliveryNotes]/[actualDeliveryCost] are only stored
+  /// when [orderStatus] is `SHIPPED` — the backend ignores them otherwise.
+  /// [actualDeliveryCost] is a private record of what the farmer paid a
+  /// transporter; it's never shown to the buyer or added to the order total.
   static Future<Map<String, dynamic>> updateOrder(
     String token,
     String orderId, {
     required String orderStatus,
+    String? contactPhone,
+    String? deliveryNotes,
+    double? actualDeliveryCost,
   }) async {
     final response = await http.put(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/$orderId'),
       headers: BaseApi.getHeaders(token, json: true),
-      body: jsonEncode({'order_status': orderStatus}),
+      body: jsonEncode({
+        'order_status': orderStatus,
+        'contact_phone': ?contactPhone,
+        'delivery_notes': ?deliveryNotes,
+        'actual_delivery_cost': ?actualDeliveryCost,
+      }),
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }

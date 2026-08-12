@@ -25,14 +25,18 @@ class AppState extends BaseAppState with
   
   AppState() {
     restoreSavedSession();
-    loadLocations();
-    refreshCategories().then((_) => refreshProducts());
+    // refreshProducts() resolves each product's raw province code (e.g.
+    // "01") through the province map loadLocations() populates — must
+    // finish first, or products load with un-resolved codes that never
+    // get fixed up until the next explicit refresh.
+    loadLocations().then((_) => refreshCategories()).then((_) => refreshProducts());
     refreshMarketPrices();
   }
 
   // Unified data loader on app boot or login refresh
   @override
   Future<void> loadBackendData() async {
+    await loadLocations();
     await refreshCategories();
     await refreshProducts();
     await refreshNotifications();

@@ -3,30 +3,95 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
+import '../../services/api/analytics_api.dart';
 import '../../services/api/cooperative_api.dart';
+import '../../services/api/order_api.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../utils/currency_format.dart';
+import '../common/chat_inbox_screen.dart';
 import 'sales_analytics.dart';
 
-class FarmerDashboardScreen extends StatelessWidget {
+class FarmerDashboardScreen extends StatefulWidget {
   const FarmerDashboardScreen({super.key});
+
+  @override
+  State<FarmerDashboardScreen> createState() => _FarmerDashboardScreenState();
+}
+
+class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
+  bool _isLoadingStats = true;
+  // {currency: total} — see sales_analytics.dart for why USD and KHR
+  // revenue is never blended into one number.
+  Map<String, double> _revenueByCurrency = {};
+  List<dynamic> _orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) {
+      setState(() => _isLoadingStats = false);
+      return;
+    }
+    try {
+      final results = await Future.wait([
+        AnalyticsApi.fetchFarmerSalesAnalytics(state.token!),
+        OrderApi.fetchOrders(state.token!),
+      ]);
+      final analytics = results[0] as Map<String, dynamic>;
+      final orders = results[1] as List<dynamic>;
+
+      final revenueByCurrency = <String, double>{};
+      for (final entry in (analytics['revenue_by_currency'] as List? ?? [])) {
+        revenueByCurrency[entry['currency']?.toString() ?? 'USD'] = (entry['amount'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      if (mounted) {
+        setState(() {
+          _revenueByCurrency = revenueByCurrency;
+          _orders = orders;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
 
-    final activeBids = state.negotiations.where((n) {
-      final p = n.product;
-      final isMyId = (p.sellerId != null && state.userProfile != null && p.sellerId == state.userProfile!['id']);
-      final isMyName = p.farmerName.toLowerCase().contains('sopheap') ||
-                       p.farmerName.toLowerCase().contains('sok_farmer') ||
-                       p.farmerName.toLowerCase().contains('sokha') ||
-                       p.farmerName.toLowerCase().contains('cooperative') ||
-                       (state.userProfile != null && p.farmerName == state.userProfile!['username']);
-      return isMyId || isMyName;
-    }).toList();
+    final myId = state.userProfile?['id'];
+    final myContracts = state.negotiations.where((n) => n.sellerId != null && n.sellerId == myId).toList();
+    // "Active" excludes deals that are already fully done or fell through —
+    // COMPLETED/TERMINATED contracts still count toward totalContracts
+    // below, but they're not something the farmer needs to act on anymore.
+    const closedStatuses = {'COMPLETED', 'TERMINATED'};
+    final activeBids = myContracts.where((n) => !closedStatuses.contains(n.contractStatus)).toList();
+
+    final myOrders = _orders.where((o) => (o as Map<String, dynamic>)['seller_id'] == myId).toList();
+    // Mirrors the same gating the order-history sheet uses before it'll
+    // show a farmer a "next step" action button: paid, and still short of
+    // DELIVERED — anything else needs no attention from them right now.
+    const actionableStatuses = {'PLACED', 'CONFIRMED', 'SHIPPED'};
+    final pendingActionsCount = myOrders
+        .where((o) => (o as Map<String, dynamic>)['payment_status'] == 'PAID' && actionableStatuses.contains(o['order_status']))
+        .length;
+
+    // Every distinct buyer this farmer has ever done business with, across
+    // both one-off orders and wholesale contracts.
+    final customerIds = <String>{
+      ...myOrders.map((o) => (o as Map<String, dynamic>)['buyer_id']?.toString()).whereType<String>(),
+      ...myContracts.map((n) => n.buyerId).whereType<String>(),
+    };
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -38,7 +103,15 @@ class FarmerDashboardScreen extends StatelessWidget {
             _buildHeader(context),
             const SizedBox(height: 20),
             const _CoopInvitationsBanner(),
-            _buildPerformanceStats(context, activeBids),
+            _buildPerformanceStats(
+              context,
+              activeBids: activeBids,
+              totalContracts: myContracts.length,
+              totalCustomers: customerIds.length,
+              pendingActionsCount: pendingActionsCount,
+            ),
+            const SizedBox(height: 24),
+            _buildQuickActions(context),
             const SizedBox(height: 40),
           ],
         ),
@@ -71,62 +144,183 @@ class FarmerDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPerformanceStats(BuildContext context, List<BidOffer> activeBids) {
+  Widget _buildQuickActions(BuildContext context) {
     final state = Provider.of<AppState>(context, listen: false);
-    return Row(
+    return CustomCard(
+      padding: const EdgeInsets.all(4),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ChatInboxScreen()),
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primaryContainer.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.primary),
+        ),
+        title: Text(
+          state.translate('open_chat'),
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.onSurface),
+        ),
+        subtitle: Text(
+          state.translate('open_chat_subtitle'),
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),
+      ),
+    );
+  }
+
+  Widget _buildPerformanceStats(
+    BuildContext context, {
+    required List<BidOffer> activeBids,
+    required int totalContracts,
+    required int totalCustomers,
+    required int pendingActionsCount,
+  }) {
+    final state = Provider.of<AppState>(context, listen: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: CustomCard(
-            padding: const EdgeInsets.all(16),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SalesAnalyticsScreen(),
+        CustomCard(
+          padding: const EdgeInsets.all(16),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SalesAnalyticsScreen(),
+              ),
+            );
+          },
+          child: Row(
+            children: [
+              const Icon(Icons.monetization_on_outlined, color: AppColors.primary, size: 28),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _isLoadingStats
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                          )
+                        // Both currencies, always — even at $0/៛0 — since
+                        // Cambodia trades in both and a farmer with only
+                        // KHR orders so far shouldn't look like USD isn't
+                        // tracked at all. Never blended into one number:
+                        // there's no exchange rate anywhere in this app.
+                        // Always on separate lines, not side by side, so
+                        // neither currency reads as an afterthought.
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                formatCurrency(_revenueByCurrency['USD'] ?? 0.0, 'USD'),
+                                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
+                              ),
+                              Text(
+                                formatCurrency(_revenueByCurrency['KHR'] ?? 0.0, 'KHR'),
+                                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
+                              ),
+                            ],
+                          ),
+                    const SizedBox(height: 2),
+                    Text(
+                      state.translate('yearly_sales_revenue'),
+                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                    ),
+                  ],
                 ),
-              );
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.monetization_on_outlined, color: AppColors.primary, size: 24),
-                const SizedBox(height: 8),
-                Text(
-                  '\$1,420.00',
-                  style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  state.translate('total_revenue_trend'),
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
-                ),
-              ],
-            ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: CustomCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.gavel_outlined, color: AppColors.secondary, size: 24),
-                const SizedBox(height: 8),
-                Text(
-                  '${activeBids.length}',
-                  style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.secondary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  state.translate('active_negotiations'),
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
-                ),
-              ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                context,
+                icon: Icons.gavel_outlined,
+                iconColor: AppColors.secondary,
+                value: '${activeBids.length}',
+                label: state.translate('active_negotiations'),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                context,
+                icon: Icons.description_outlined,
+                iconColor: AppColors.tertiary,
+                value: '$totalContracts',
+                label: state.translate('total_contracts'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                context,
+                icon: Icons.people_outline_rounded,
+                iconColor: AppColors.primary,
+                value: '$totalCustomers',
+                label: state.translate('total_customers'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                context,
+                icon: Icons.local_shipping_outlined,
+                iconColor: AppColors.error,
+                value: _isLoadingStats ? '-' : '$pendingActionsCount',
+                label: state.translate('pending_actions'),
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String value,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    return CustomCard(
+      padding: const EdgeInsets.all(16),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: iconColor, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: iconColor),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }

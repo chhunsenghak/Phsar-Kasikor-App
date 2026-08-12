@@ -47,8 +47,18 @@ class OrderUpdate(BaseModel):
     absent — a buyer or seller self-reporting payment defeats the point of
     verifying it; see the payments endpoints and Order.confirm-payment for
     the only legitimate ways payment_status changes.
+
+    contact_phone/delivery_notes/actual_delivery_cost are only meaningful
+    (and only stored) when this update transitions the order to SHIPPED —
+    that's the moment a farmer actually knows who's carrying it and what it
+    cost. actual_delivery_cost is a private record of what the farmer paid
+    a transporter; it is never charged to the buyer and is separate from
+    the order's own delivery_fee, which was already fixed at checkout.
     """
     order_status: OrderStatus
+    contact_phone: Optional[str] = None
+    delivery_notes: Optional[str] = None
+    actual_delivery_cost: Optional[float] = None
 
 class OrderOut(BaseModel):
     id: str

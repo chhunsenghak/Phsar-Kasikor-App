@@ -9,6 +9,9 @@ class DeliveryBase(BaseModel):
     current_location_lng: Optional[float] = Field(None, ge=-180, le=180)
     delivery_status: str = "dispatched"
     estimated_time_of_arrival: Optional[datetime] = None
+    contact_phone: Optional[str] = None
+    delivery_notes: Optional[str] = None
+    actual_delivery_cost: Optional[float] = None
 
 class DeliveryCreate(DeliveryBase):
     pass
@@ -19,6 +22,9 @@ class DeliveryUpdate(BaseModel):
     current_location_lng: Optional[float] = Field(None, ge=-180, le=180)
     delivery_status: Optional[str] = None
     estimated_time_of_arrival: Optional[datetime] = None
+    contact_phone: Optional[str] = None
+    delivery_notes: Optional[str] = None
+    actual_delivery_cost: Optional[float] = None
 
 class DeliveryOut(DeliveryBase):
     id: str

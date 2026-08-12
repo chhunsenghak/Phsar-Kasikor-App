@@ -155,8 +155,14 @@ def update_user(db: Session, db_obj: User, obj_in: dict) -> User:
         db_obj.address_id = new_address.id
         db.flush()
 
+    # "password" is deliberately never settable through this generic
+    # profile-fields path — it must go through get_password_hash first (see
+    # create_user) or it silently overwrites the real bcrypt hash with
+    # whatever plain-text string was passed in, corrupting the account's
+    # login. Real password changes belong in a dedicated, hashing-aware
+    # flow, not here.
     for key, val in obj_in.items():
-        if key not in address_keys and hasattr(db_obj, key):
+        if key not in address_keys and key != "password" and hasattr(db_obj, key):
             setattr(db_obj, key, val)
             
     db.add(db_obj)
