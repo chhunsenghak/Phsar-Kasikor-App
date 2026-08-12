@@ -76,8 +76,7 @@ class OrderApi {
 
   /// Advances the order's fulfillment stage. Seller-only on the backend —
   /// there is no `paymentStatus` parameter here anymore: payment_status is
-  /// never settable by the buyer or seller directly, see [PaymentApi] and
-  /// [confirmPayment].
+  /// never settable by the buyer or seller directly, see [PaymentApi].
   static Future<Map<String, dynamic>> updateOrder(
     String token,
     String orderId, {
@@ -91,21 +90,32 @@ class OrderApi {
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }
 
-  /// Seller-side manual "I received the payment" fallback for when
-  /// automatic Bakong verification isn't available. Only the seller of the
-  /// order may call this.
-  static Future<Map<String, dynamic>> confirmPayment(String token, String orderId) async {
-    final response = await http.post(
-      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/$orderId/confirm-payment'),
-      headers: BaseApi.getHeaders(token, json: false),
-    );
-    return BaseApi.handleResponse(response) as Map<String, dynamic>;
-  }
-
   static Future<Map<String, dynamic>> fetchOrderDetails(String token, String orderId) async {
     final response = await http.get(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/$orderId'),
       headers: BaseApi.getHeaders(token),
+    );
+    return BaseApi.handleResponse(response) as Map<String, dynamic>;
+  }
+
+  /// Admin-only. Every KHQR order still awaiting payment confirmation — the
+  /// queue for the manual-confirm fallback used when automatic Bakong
+  /// verification can't run (e.g. the daily call cap is exhausted).
+  static Future<List<dynamic>> fetchPendingKhqrPayments(String token) async {
+    final response = await http.get(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/admin/pending-payments'),
+      headers: BaseApi.getHeaders(token),
+    );
+    return BaseApi.handleResponse(response) as List<dynamic>;
+  }
+
+  /// Admin-only manual override marking a KHQR order as paid. This is a
+  /// fallback for when automatic Bakong verification isn't available —
+  /// never call this off a buyer's or seller's own say-so.
+  static Future<Map<String, dynamic>> confirmPaymentAsAdmin(String token, String orderId) async {
+    final response = await http.post(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/$orderId/confirm-payment'),
+      headers: BaseApi.getHeaders(token, json: false),
     );
     return BaseApi.handleResponse(response) as Map<String, dynamic>;
   }

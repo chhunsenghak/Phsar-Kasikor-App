@@ -7,7 +7,7 @@ from app.models.user import User
 from app.models.delivery import Delivery
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.schemas.notification import NotificationCreate
-from app.services import geo_service, notification_service
+from app.services import geo_service, khqr_service, notification_service
 
 # Below this, a listing is "running low" — worth telling the farmer about
 # before they oversell or a buyer hits an empty listing.
@@ -55,10 +55,78 @@ def _delivery_fee_for(currency: str, distance_km: float, weight_kg: float) -> fl
     # USD cents — round to the nearest 100.
     return round(fee / 100) * 100 if currency == "KHR" else round(fee, 2)
 
-def get_order(db: Session, order_id: str) -> Optional[Order]:
+def verify_and_settle_khqr(db: Session, md5_hash: str) -> tuple[str, List[Order]]:
+    """
+    Re-checks the given KHQR against Bakong and, only on a confirmed "paid",
+    flips every still-PENDING order linked to it. This is the single place
+    payment_status ever becomes PAID off a KHQR scan — called both by the
+    buyer's explicit "I've Paid" tap/poll and by the opportunistic re-check
+    in get_order(), so payment tracking is automatic and never depends on
+    the buyer, seller, or admin manually saying "yes it's paid".
+    Returns ("paid", orders) / ("unpaid", []) / ("unavailable", []).
+    """
+    orders = db.query(Order).filter(
+        Order.khqr_md5 == md5_hash,
+        Order.payment_status == "PENDING",
+        Order.order_status != "CANCELLED",
+    ).all()
+    if not orders:
+        return ("unpaid", [])
+
+    paid = khqr_service.check_payment_status(md5_hash)
+    if paid is None:
+        return ("unavailable", [])
+    if paid is False:
+        return ("unpaid", [])
+
+    for o in orders:
+        o.payment_status = "PAID"
+    db.commit()
+    for o in orders:
+        db.refresh(o)
+        try:
+            notification_service.create_notification(
+                db,
+                notification_in=NotificationCreate(
+                    user_id=o.seller_id,
+                    title="Payment Received",
+                    message=f"Order #{o.id[:8].upper()} has been paid via KHQR.",
+                    is_read=False
+                )
+            )
+        except Exception:
+            pass
+    return ("paid", orders)
+
+def get_pending_khqr_payments(db: Session, skip: int = 0, limit: int = 100) -> List[Order]:
+    """
+    Every KHQR order still awaiting payment confirmation — the admin queue
+    for the manual-confirm fallback (confirm_payment_by_admin), used when
+    automatic Bakong verification can't run (e.g. the daily call cap is
+    exhausted). Excludes cancelled orders, which can never be paid.
+    """
     return db.query(Order).options(
         joinedload(Order.buyer), joinedload(Order.seller)
+    ).filter(
+        Order.payment_method == "KHQR",
+        Order.payment_status == "PENDING",
+        Order.order_status != "CANCELLED",
+    ).order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
+
+def get_order(db: Session, order_id: str) -> Optional[Order]:
+    db_order = db.query(Order).options(
+        joinedload(Order.buyer), joinedload(Order.seller)
     ).filter(Order.id == order_id).first()
+
+    # Piggyback a re-check onto every read of a still-pending KHQR order —
+    # this is what makes tracking automatic: the order-tracking screen's
+    # existing poll surfaces a fresh Bakong result on its own, with no
+    # manual confirm step from the buyer, seller, or admin.
+    if db_order and db_order.payment_method == "KHQR" and db_order.payment_status == "PENDING" and db_order.khqr_md5:
+        verify_and_settle_khqr(db, db_order.khqr_md5)
+        db.refresh(db_order)
+
+    return db_order
 
 def get_orders_for_user(db: Session, user_id: str, skip: int = 0, limit: int = 100) -> List[Order]:
     return db.query(Order).options(
@@ -229,6 +297,71 @@ def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
 
     return db_order
 
+def create_order_from_contract(db: Session, contract) -> Order:
+    """
+    Builds a real, already-paid Order once a contract's final payment
+    clears, so delivery fulfillment (Confirm/Ship/Deliver, the live-map
+    tracking screen) reuses the order system entirely rather than a second
+    parallel implementation for contracts — see
+    contract_service._settle_final_payment.
+
+    Deliberately does NOT reuse create_order: no product-stock decrement (a
+    wholesale contract was never drawn from the live marketplace stock
+    pool, so it shouldn't touch it), no multi-seller/currency
+    re-validation (the contract already guarantees both are single), no
+    KHQR generation (already paid via the contract's own deposit + final
+    payment KHQR).
+    """
+    total_value = sum(float(item.agreed_price) * float(item.agreed_quantity) for item in contract.items)
+    delivery_fee = float(contract.delivery_fee or 0)
+    delivery_method = contract.delivery_method or "PICKUP"
+
+    # Contracts don't collect a delivery address today — default from the
+    # buyer's saved profile address (same source create_order's distance
+    # calc already reads from), or leave it unset. A contract-derived order
+    # with no coordinates just shows no map pin, same as any order would.
+    buyer = db.query(User).filter(User.id == contract.buyer_id).first()
+    delivery_address_text = None
+    delivery_lat = None
+    delivery_lng = None
+    if delivery_method == "DELIVERY" and buyer:
+        delivery_lat = buyer.latitude
+        delivery_lng = buyer.longitude
+        address_parts = [buyer.street_address, buyer.commune, buyer.district, buyer.province]
+        delivery_address_text = ", ".join(p for p in address_parts if p) or None
+
+    db_order = Order(
+        buyer_id=contract.buyer_id,
+        seller_id=contract.seller_id,
+        total_amount=total_value + delivery_fee,
+        currency=contract.deposit_currency,
+        payment_status="PAID",
+        order_status="PLACED",
+        payment_method="KHQR",
+        delivery_method=delivery_method,
+        delivery_fee=delivery_fee,
+        delivery_address_text=delivery_address_text,
+        delivery_lat=delivery_lat,
+        delivery_lng=delivery_lng,
+    )
+    db.add(db_order)
+    db.flush()  # Generate ID
+
+    for item in contract.items:
+        db.add(OrderItem(
+            order_id=db_order.id,
+            product_id=item.product_id,
+            quantity=item.agreed_quantity,
+            subtotal=float(item.agreed_price) * float(item.agreed_quantity),
+        ))
+
+    if delivery_method == "DELIVERY":
+        db.add(Delivery(order_id=db_order.id, delivery_status="pending"))
+
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
 def update_order_status(db: Session, db_order: Order, order_update: OrderUpdate, actor_id: str) -> Order:
     # Only the seller drives fulfillment — the buyer's only lever on order
     # state is cancel_order, matching what the app's UI already exposes.
@@ -278,16 +411,17 @@ def update_order_status(db: Session, db_order: Order, order_update: OrderUpdate,
     return db_order
 
 
-def confirm_payment_by_seller(db: Session, db_order: Order, actor_id: str) -> Order:
+def confirm_payment_by_admin(db: Session, db_order: Order) -> Order:
     """
-    Manual fallback for when Bakong verification isn't configured/available:
-    the seller — the only party who actually knows whether the money
-    arrived, and who has no incentive to lie about it — confirms receipt
-    themselves. This is the only writer of payment_status besides the
-    verified Bakong check and dispute resolution.
+    Support-only escape hatch for a KHQR order stuck PENDING despite really
+    being paid (e.g. a Bakong outage, or a buyer who paid before the QR's
+    md5 was linked correctly) — payment tracking is otherwise fully
+    automatic via verify_and_settle_khqr(), so this should be rare. Every
+    KHQR order pays into Phsar Kasikor's own merchant account, not the
+    seller's, so only admin (who actually holds that account) has any
+    firsthand basis for overriding it — the endpoint calling this must be
+    admin-only.
     """
-    if db_order.seller_id != actor_id:
-        raise Exception("NOT_AUTHORIZED")
     if db_order.payment_status == "PAID":
         raise Exception("ORDER_ALREADY_PAID")
 
@@ -295,18 +429,23 @@ def confirm_payment_by_seller(db: Session, db_order: Order, actor_id: str) -> Or
     db.commit()
     db.refresh(db_order)
 
-    try:
-        notification_service.create_notification(
-            db,
-            notification_in=NotificationCreate(
-                user_id=db_order.buyer_id,
-                title="Payment Confirmed",
-                message=f"The seller confirmed your payment for order #{db_order.id[:8].upper()}.",
-                is_read=False
+    order_ref = db_order.id[:8].upper()
+    for user_id, message in (
+        (db_order.buyer_id, f"Your payment for order #{order_ref} has been confirmed."),
+        (db_order.seller_id, f"Payment for order #{order_ref} has been confirmed — you can proceed to fulfill it."),
+    ):
+        try:
+            notification_service.create_notification(
+                db,
+                notification_in=NotificationCreate(
+                    user_id=user_id,
+                    title="Payment Confirmed",
+                    message=message,
+                    is_read=False
+                )
             )
-        )
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     return db_order
 

@@ -46,6 +46,7 @@ const Map<String, String> _apiErrorTranslationKeys = {
   'DELIVERY_LOCATION_REQUIRED': 'delivery_location_required',
   'ORDER_CANNOT_BE_CANCELLED': 'order_cannot_be_cancelled_error',
   'ORDER_ALREADY_PAID': 'order_already_paid_error',
+  'ORDER_ALREADY_CANCELLED': 'order_already_cancelled_error',
   'MULTIPLE_CURRENCIES_IN_ORDER': 'multiple_currencies_in_order_error',
   'MULTIPLE_SELLERS_IN_ORDER': 'multiple_sellers_in_order_error',
   'NO_ITEMS_IN_ORDER': 'no_items_in_order_error',

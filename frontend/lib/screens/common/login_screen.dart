@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
@@ -117,22 +118,31 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _buildLogo(),
-              const SizedBox(height: 48),
-              _buildLoginCard(context),
-              const SizedBox(height: 24),
-              _buildDivider(context),
-              const SizedBox(height: 24),
-              _buildSocialButton(context),
-              const SizedBox(height: 32),
-              _buildSignUpLink(context),
-              const SizedBox(height: 40),
-              _buildFooterBadges(),
-            ],
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          // Centered, width-capped column — on a phone this is a no-op (the
+          // screen is already narrower than the cap), but it keeps the form
+          // from stretching edge-to-edge into unnaturally wide input fields
+          // on a tablet or the web build.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _buildLogo(),
+                  const SizedBox(height: 36),
+                  _buildLoginCard(context),
+                  const SizedBox(height: 24),
+                  _buildDivider(context),
+                  const SizedBox(height: 20),
+                  _buildSocialButton(context),
+                  const SizedBox(height: 28),
+                  _buildSignUpLink(context),
+                  const SizedBox(height: 32),
+                  _buildFooterBadges(),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -158,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          'AgriMarket',
+          'Phsar Kasikor',
           style: GoogleFonts.inter(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -202,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
 
             // Form Fields
             CustomInput(
@@ -217,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             CustomInput(
               label: state.translate('password'),
@@ -353,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.g_mobiledata_rounded, size: 28, color: Colors.blue),
+          SvgPicture.asset('assets/icons/google_logo.svg', width: 20, height: 20),
           const SizedBox(width: 8),
           Text(
             state.translate('google_sign_in'),
@@ -405,21 +415,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildFooterBadges() {
     final state = Provider.of<AppState>(context, listen: false);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 12,
+      runSpacing: 6,
       children: [
-        const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.outline),
-        const SizedBox(width: 4),
-        Text(
-          state.translate('secure_connection'),
-          style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.outline),
+            const SizedBox(width: 4),
+            Text(
+              state.translate('secure_connection'),
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        const Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.outline),
-        const SizedBox(width: 4),
-        Text(
-          state.translate('data_encrypted'),
-          style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.outline),
+            const SizedBox(width: 4),
+            Text(
+              state.translate('data_encrypted'),
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
+            ),
+          ],
         ),
       ],
     );

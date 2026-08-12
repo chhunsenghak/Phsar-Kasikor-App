@@ -8,8 +8,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.order import Order
 from app.schemas.payment import KHQRGenerateRequest, KHQROut, PaymentStatusOut, PaymentConfirmOut
-from app.schemas.notification import NotificationCreate
-from app.services import khqr_service, notification_service
+from app.services import khqr_service, order_service
 
 router = APIRouter()
 
@@ -36,6 +35,25 @@ def generate_khqr_for_orders(
             raise HTTPException(status_code=403, detail=errors.NOT_AUTHORIZED)
         if o.payment_status == "PAID":
             raise HTTPException(status_code=400, detail=errors.ORDER_ALREADY_PAID)
+        if o.order_status == "CANCELLED":
+            raise HTTPException(status_code=400, detail=errors.ORDER_ALREADY_CANCELLED)
+
+    # Bakong's dynamic KHQR embeds a fresh timestamp on every build, so
+    # re-generating for the same orders — a hot reload, re-opening the
+    # checkout screen, anything that re-runs this call — would mint a brand
+    # new md5 and silently orphan a QR the buyer may already have scanned
+    # and paid. If every requested order already carries the same pending
+    # QR, hand back that one instead: re-rendering its image is pure/local
+    # and never touches Bakong, so it can't change the md5.
+    existing_md5s = {o.khqr_md5 for o in orders}
+    existing_qr_strings = {o.khqr_qr_string for o in orders}
+    if len(existing_md5s) == 1 and len(existing_qr_strings) == 1 and None not in existing_qr_strings:
+        qr_string = existing_qr_strings.pop()
+        return KHQROut(
+            qr_string=qr_string,
+            md5=existing_md5s.pop(),
+            qr_image_base64=khqr_service.render_qr_image(qr_string),
+        )
 
     currencies = {o.currency for o in orders}
     if len(currencies) != 1:
@@ -54,6 +72,7 @@ def generate_khqr_for_orders(
     # verification has nothing to act on.
     for o in orders:
         o.khqr_md5 = result["md5"]
+        o.khqr_qr_string = result["qr_string"]
     db.commit()
 
     return KHQROut(**result)
@@ -66,8 +85,8 @@ def get_khqr_payment_status(
     """
     Best-effort check of whether a generated KHQR has been paid. Returns
     "unavailable" (not "unpaid") whenever verification can't actually be
-    performed, so the client knows to fall back to manual confirmation
-    instead of assuming payment failed. This is read-only — it never
+    performed, so the client knows the difference between "checked, not
+    paid yet" and "couldn't check at all". This is read-only — it never
     updates an order; use POST /khqr/{md5_hash}/confirm for that.
     """
     paid = khqr_service.check_payment_status(md5_hash)
@@ -85,9 +104,9 @@ def confirm_khqr_payment(
     The only way payment_status ever becomes PAID off the back of a KHQR
     scan: re-verifies against Bakong (never trusts the buyer's say-so) and,
     only on a confirmed "paid", flips every still-PENDING order linked to
-    this md5. If verification isn't available (no bearer token configured,
-    or a transient failure), nothing changes — the seller's manual
-    confirm-payment action is the fallback for that case.
+    this md5. This is also called automatically every time an order is read
+    (see order_service.get_order), so payment tracking works even if the
+    buyer never taps anything on this endpoint themselves.
     """
     orders = db.query(Order).filter(Order.khqr_md5 == md5_hash, Order.payment_status == "PENDING").all()
     if not orders:
@@ -96,28 +115,7 @@ def confirm_khqr_payment(
         if o.buyer_id != current_user.id:
             raise HTTPException(status_code=403, detail=errors.NOT_AUTHORIZED)
 
-    paid = khqr_service.check_payment_status(md5_hash)
-    if paid is not True:
-        return PaymentConfirmOut(status="unavailable" if paid is None else "unpaid")
-
-    confirmed_ids = []
-    for o in orders:
-        o.payment_status = "PAID"
-        confirmed_ids.append(o.id)
-    db.commit()
-
-    for o in orders:
-        try:
-            notification_service.create_notification(
-                db,
-                notification_in=NotificationCreate(
-                    user_id=o.seller_id,
-                    title="Payment Received",
-                    message=f"Order #{o.id[:8].upper()} has been paid via KHQR.",
-                    is_read=False
-                )
-            )
-        except Exception:
-            pass
-
-    return PaymentConfirmOut(status="paid", confirmed_order_ids=confirmed_ids)
+    status_str, settled = order_service.verify_and_settle_khqr(db, md5_hash)
+    if status_str != "paid":
+        return PaymentConfirmOut(status=status_str)
+    return PaymentConfirmOut(status="paid", confirmed_order_ids=[o.id for o in settled])

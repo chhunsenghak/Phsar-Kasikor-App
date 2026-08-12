@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api/notification_api.dart';
+import '../../utils/phnom_penh_time.dart';
 import 'base_app_state.dart';
 
 mixin NotificationStateMixin on BaseAppState {
@@ -7,36 +8,8 @@ mixin NotificationStateMixin on BaseAppState {
   List<Map<String, dynamic>> get notifications => _notifications;
 
   String _formatDateTimeTo12Hour(String? isoString) {
-    if (isoString == null) return 'Just now';
-    try {
-      String cleaned = isoString.trim();
-      cleaned = cleaned.replaceAll(' ', 'T');
-      final tIndex = cleaned.indexOf('T');
-      final searchStart = tIndex >= 0 ? tIndex : 0;
-      if (!cleaned.endsWith('Z') && 
-          !cleaned.contains('+', searchStart) && 
-          !cleaned.contains('-', searchStart)) {
-        cleaned += 'Z';
-      }
-      final dtUtc = DateTime.parse(cleaned).toUtc();
-      final dtCambodia = dtUtc.add(const Duration(hours: 7));
-      
-      final year = dtCambodia.year;
-      final month = dtCambodia.month.toString().padLeft(2, '0');
-      final day = dtCambodia.day.toString().padLeft(2, '0');
-      
-      int hour = dtCambodia.hour;
-      final minute = dtCambodia.minute.toString().padLeft(2, '0');
-      final ampm = hour >= 12 ? 'PM' : 'AM';
-      
-      hour = hour % 12;
-      if (hour == 0) hour = 12;
-      final hourStr = hour.toString().padLeft(2, '0');
-      
-      return '$year-$month-$day $hourStr:$minute $ampm';
-    } catch (_) {
-      return 'Just now';
-    }
+    final formatted = formatPhnomPenhDateTime(isoString);
+    return formatted.isEmpty ? 'Just now' : formatted;
   }
 
   @override

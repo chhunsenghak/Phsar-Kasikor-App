@@ -36,6 +36,15 @@ class Order(Base):
     # check/confirm on that md5 knows which orders to settle.
     khqr_md5 = Column(String, nullable=True, index=True)
 
+    # The exact QR string the md5 above was hashed from. Bakong's dynamic
+    # KHQR embeds a fresh timestamp on every build, so re-running QR
+    # generation for the same order — e.g. a hot reload or re-opening the
+    # checkout screen — produces a different string and thus a different
+    # md5, silently orphaning a QR the buyer may already have paid. Storing
+    # it lets generation reuse the original QR (re-rendering the image is
+    # pure/local and needs no new Bakong call) instead of minting a new one.
+    khqr_qr_string = Column(String, nullable=True)
+
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

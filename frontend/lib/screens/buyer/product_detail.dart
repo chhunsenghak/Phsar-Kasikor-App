@@ -7,7 +7,7 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/trust_badge.dart';
 import '../../widgets/app_snackbar.dart';
-import 'buyer_negotiation.dart';
+import '../common/chat_thread_screen.dart';
 import 'checkout_screen.dart';
 import 'farm_profile.dart';
 import 'cart_screen.dart';
@@ -367,19 +367,26 @@ class ProductDetailScreen extends StatelessWidget {
         top: false,
         child: Row(
           children: [
-            // Negotiating a price is available even when stock is exhausted.
+            // Chat with the seller first — a contract can be proposed from
+            // inside the conversation once the buyer is actually interested,
+            // rather than this icon skipping straight to a price proposal.
             SizedBox(
               width: 56,
               height: 56,
               child: OutlinedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => BuyerNegotiationScreen(product: product),
-                    ),
-                  );
-                },
+                onPressed: product.sellerId == null
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatThreadScreen(
+                              otherUserId: product.sellerId!,
+                              otherUserName: product.farmerName,
+                            ),
+                          ),
+                        );
+                      },
                 style: OutlinedButton.styleFrom(
                   padding: EdgeInsets.zero,
                   shape: const CircleBorder(),

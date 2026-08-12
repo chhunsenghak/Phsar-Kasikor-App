@@ -8,6 +8,7 @@ import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../services/api/payment_api.dart';
+import '../../utils/khqr_polling_mixin.dart';
 import '../common/order_contract_history_screen.dart';
 import 'order_tracking.dart';
 
@@ -26,9 +27,7 @@ class KHQRCheckoutScreen extends StatefulWidget {
   State<KHQRCheckoutScreen> createState() => _KHQRCheckoutScreenState();
 }
 
-class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
-  bool _isSettlingPayment = false;
-
+class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> with KhqrPollingMixin<KHQRCheckoutScreen> {
   /// Orders still awaiting settlement — a retry only re-sends these.
   late List<PlacedOrder> _unsettled = List<PlacedOrder>.from(widget.orders);
 
@@ -44,6 +43,10 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
   void initState() {
     super.initState();
     _generateQrCodes();
+    // Re-checks Bakong in the background every few seconds so payment is
+    // tracked automatically — the buyer never has to tap "I've Paid" for it
+    // to register; that button is just a manual nudge for instant feedback.
+    startPolling();
   }
 
   Future<void> _generateQrCodes() async {
@@ -89,13 +92,17 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
 
   /// Re-checks each currency's KHQR against Bakong and settles whichever
   /// orders it actually confirms as paid. There is deliberately no path here
-  /// that marks an order PAID just because the buyer tapped this button —
-  /// only a verified Bakong result (or, separately, the seller's own
-  /// confirm-payment action) does that.
-  Future<void> _settlePayment(AppState state) async {
-    if (_isSettlingPayment || state.token == null) return;
-
-    setState(() => _isSettlingPayment = true);
+  /// that marks an order PAID (or leaves this screen) just because the
+  /// buyer tapped a button or time passed — only a verified Bakong "paid"
+  /// result does either. A slow network or a not-yet-scanned QR just means
+  /// try again: this runs silently via [KhqrPollingMixin] so payment is
+  /// tracked automatically without the buyer needing to do anything, and
+  /// also on the manual "I've Paid" tap, which additionally surfaces
+  /// feedback. Returns true once every order in this checkout is settled.
+  @override
+  Future<bool> checkPayment({required bool silent}) async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null || _unsettled.isEmpty) return _unsettled.isEmpty;
 
     final Map<String, List<PlacedOrder>> unsettledByCurrency = {};
     for (final order in _unsettled) {
@@ -103,7 +110,13 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
     }
 
     final Set<String> confirmedIds = {};
-    bool anyVerificationUnavailable = false;
+    // "unpaid" is a real Bakong result: it actually checked and the money
+    // hasn't arrived yet — a slow network, or the buyer just hasn't scanned
+    // yet, is exactly this case, and it just means "try again". "unavailable"
+    // (no bearer token configured, or a request error) means we simply
+    // couldn't tell this time. Either way, nothing here ever leaves this
+    // screen except a genuinely confirmed "paid".
+    bool anyVerifiedUnpaid = false;
 
     for (final currency in unsettledByCurrency.keys) {
       final md5 = _qrByCurrency[currency]?['md5']?.toString();
@@ -114,29 +127,27 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
         if (status == 'paid') {
           final ids = res['confirmed_order_ids'] as List<dynamic>? ?? [];
           confirmedIds.addAll(ids.map((e) => e.toString()));
-        } else if (status == 'unavailable') {
-          anyVerificationUnavailable = true;
+        } else if (status == 'unpaid') {
+          anyVerifiedUnpaid = true;
         }
       } catch (_) {
-        // Treated as not-yet-confirmed below; the user can just retry.
+        // Couldn't verify — treated the same as "unavailable" below.
       }
     }
 
-    if (!mounted) return;
+    if (!mounted) return false;
     final int settled = confirmedIds.length;
     setState(() {
-      _isSettlingPayment = false;
       _unsettled = _unsettled.where((o) => !confirmedIds.contains(o.orderId)).toList();
     });
 
     if (settled == 0) {
+      if (silent) return false; // background poll: just try again next tick
       AppSnackBar.warning(
         context,
-        anyVerificationUnavailable
-            ? state.translate('payment_check_unavailable')
-            : state.translate('payment_not_confirmed_yet'),
+        state.translate(anyVerifiedUnpaid ? 'payment_not_confirmed_yet' : 'payment_check_unavailable'),
       );
-      return;
+      return false;
     }
 
     final summary = _totalsByCurrency.entries
@@ -151,14 +162,17 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
     );
 
     if (_unsettled.isNotEmpty) {
-      AppSnackBar.warning(context, state.translate('partial_order_failure', arguments: {
-        'success': settled.toString(),
-        'total': widget.orders.length.toString(),
-      }));
-      return;
+      if (!silent) {
+        AppSnackBar.warning(context, state.translate('partial_order_failure', arguments: {
+          'success': settled.toString(),
+          'total': widget.orders.length.toString(),
+        }));
+      }
+      return false;
     }
 
     _goToPostPaymentScreen();
+    return true;
   }
 
   void _goToPostPaymentScreen() {
@@ -204,7 +218,7 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onSurface),
-          onPressed: _isSettlingPayment ? null : () => Navigator.pop(context),
+          onPressed: isCheckingPayment ? null : () => Navigator.pop(context),
         ),
         title: Text(
           state.translate('khqr_checkout'),
@@ -227,14 +241,14 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
                 ]),
             const SizedBox(height: 16),
             CustomButton(
-              text: _isSettlingPayment
+              text: isCheckingPayment
                   ? state.translate('settling_payment')
                   : state.translate('confirm_payment_done'),
               icon: Icons.check_circle_outline_rounded,
-              isLoading: _isSettlingPayment,
-              onPressed: (_isSettlingPayment || _isGeneratingQr)
+              isLoading: isCheckingPayment,
+              onPressed: (isCheckingPayment || _isGeneratingQr)
                   ? null
-                  : () => _settlePayment(state),
+                  : checkPaymentManually,
             ),
             const SizedBox(height: 12),
             Text(
@@ -357,84 +371,36 @@ class _KHQRCheckoutScreenState extends State<KHQRCheckoutScreen> {
 
   Widget _buildQrCard(AppState state, String currency, double amount) {
     final String amountLabel = formatCurrencyAmount(amount, currency);
-    final ordersForCurrency =
-        widget.orders.where((o) => o.currency == currency).toList();
 
     return CustomCard(
-      backgroundColor: AppColors.primary,
-      padding: const EdgeInsets.all(24),
+      borderSide: const BorderSide(color: AppColors.outlineVariant),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'KHQR',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red[800],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'BAKONG',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppDesign.borderRadiusSm),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: _buildQrContent(state, currency),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'PHSAR KASIKOR MERCHANT',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
           Text(
             amountLabel,
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: AppColors.onSurface,
               fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontSize: 22,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final double qrSize = constraints.maxWidth.clamp(200.0, 320.0);
+              return SizedBox(
+                width: qrSize,
+                height: qrSize,
+                child: _buildQrContent(state, currency),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
           Text(
-            ordersForCurrency.length == 1
-                ? state.translate('order_id_prefix', arguments: {'id': ordersForCurrency.first.orderId})
-                : state.translate('items_count', arguments: {
-                    'count': ordersForCurrency.length.toString(),
-                  }),
-            style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 12,
-            ),
+            state.translate('scan_with_bakong_app'),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
           ),
         ],
       ),

@@ -49,7 +49,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   String? _destinationAddressText;
   double? _transporterLat;
   double? _transporterLng;
-  bool _isConfirmingPayment = false;
   bool _isUpdatingLocation = false;
 
   final List<Map<String, String>> _steps = [
@@ -143,9 +142,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           if (_paymentMethod == 'COD') {
             _steps[0]['title'] = 'step_order_confirmed';
             _steps[0]['desc'] = 'step_order_confirmed_desc';
-          } else {
+          } else if (_paymentStatus == 'PAID') {
             _steps[0]['title'] = 'step_payment_approved';
             _steps[0]['desc'] = 'step_payment_approved_desc';
+          } else {
+            // Every poll of this screen re-checks Bakong in the background
+            // (see order_service.get_order) — don't claim "verified" until
+            // that actually flips payment_status to PAID.
+            _steps[0]['title'] = 'step_payment_pending';
+            _steps[0]['desc'] = 'step_payment_pending_desc';
           }
 
           if (_deliveryMethod == 'PICKUP') {
@@ -291,14 +296,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 ],
               ),
             ),
-
-            if (state.currentRole == 'farmer' &&
-                _paymentMethod == 'KHQR' &&
-                _paymentStatus != 'PAID' &&
-                _orderStatus != 'CANCELLED') ...[
-              const SizedBox(height: 12),
-              _buildConfirmPaymentCard(state),
-            ],
 
             if (_deliveryMethod == 'DELIVERY' && _destinationLat != null && _destinationLng != null) ...[
               const SizedBox(height: 12),
@@ -516,47 +513,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           _isUpdating = false;
         });
       }
-    }
-  }
-
-  Widget _buildConfirmPaymentCard(AppState state) {
-    return CustomCard(
-      backgroundColor: AppColors.secondaryContainer.withValues(alpha: 0.5),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            state.translate('confirm_payment_received_desc'),
-            style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.onSecondaryContainer),
-          ),
-          const SizedBox(height: 12),
-          CustomButton.secondary(
-            text: state.translate('confirm_payment_received'),
-            icon: Icons.verified_rounded,
-            isLoading: _isConfirmingPayment,
-            onPressed: _isConfirmingPayment ? null : () => _confirmPayment(state),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmPayment(AppState state) async {
-    if (state.token == null) return;
-    setState(() => _isConfirmingPayment = true);
-    try {
-      await OrderApi.confirmPayment(state.token!, widget.orderId);
-      await _fetchOrderStatus(silent: false);
-      if (mounted) {
-        AppSnackBar.success(context, state.translate('payment_confirmed_seller'));
-      }
-    } catch (e) {
-      if (mounted) {
-        AppSnackBar.error(context, friendlyApiError(state, e));
-      }
-    } finally {
-      if (mounted) setState(() => _isConfirmingPayment = false);
     }
   }
 
