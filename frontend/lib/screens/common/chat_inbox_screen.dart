@@ -8,6 +8,7 @@ import '../../services/api/chat_api.dart';
 import '../../utils/api_error.dart';
 import '../../utils/phnom_penh_time.dart';
 import '../../utils/visibility_listener.dart';
+import '../../widgets/custom_card.dart';
 import '../../widgets/user_avatar.dart';
 import 'chat_thread_screen.dart';
 
@@ -85,9 +86,23 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> with WidgetsBindingOb
         backgroundColor: AppColors.surface,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.onSurface),
-        title: Text(
-          state.translate('messages'),
-          style: GoogleFonts.inter(color: AppColors.onSurface, fontWeight: FontWeight.bold, fontSize: 18),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.forum_rounded, color: AppColors.primary, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              state.translate('messages'),
+              style: GoogleFonts.inter(color: AppColors.onSurface, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
         ),
       ),
       body: _isLoading
@@ -133,58 +148,17 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> with WidgetsBindingOb
                       onRefresh: _load,
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
                         itemCount: _conversations.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1, indent: 76),
+                        separatorBuilder: (context, index) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final convo = _conversations[index];
                           final int unread = (convo['unread_count'] as num?)?.toInt() ?? 0;
                           final String otherUserId = convo['other_user_id']?.toString() ?? '';
                           final String otherUserName = convo['other_user_name']?.toString() ?? '';
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            leading: UserAvatar(name: otherUserName, seed: otherUserId, radius: 24),
-                            title: Text(
-                              otherUserName,
-                              style: GoogleFonts.inter(
-                                fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w600,
-                                fontSize: 15,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                            subtitle: Text(
-                              convo['last_message']?.toString() ?? '',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: unread > 0 ? AppColors.onSurface : AppColors.onSurfaceVariant,
-                                fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.normal,
-                              ),
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  formatPhnomPenhSmartDate(convo['last_message_at']?.toString()),
-                                  style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
-                                ),
-                                if (unread > 0) ...[
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      unread.toString(),
-                                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
+                          return CustomCard(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            elevationLevel: 2,
                             onTap: () async {
                               await Navigator.push(
                                 context,
@@ -197,6 +171,65 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> with WidgetsBindingOb
                               );
                               _load();
                             },
+                            child: Row(
+                              children: [
+                                UserAvatar(name: otherUserName, seed: otherUserId, radius: 24),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        otherUserName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.inter(
+                                          fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w600,
+                                          fontSize: 15,
+                                          color: AppColors.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        convo['last_message']?.toString() ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: unread > 0 ? AppColors.onSurface : AppColors.onSurfaceVariant,
+                                          fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      formatPhnomPenhSmartDate(convo['last_message_at']?.toString()),
+                                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
+                                    ),
+                                    if (unread > 0) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          unread.toString(),
+                                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),

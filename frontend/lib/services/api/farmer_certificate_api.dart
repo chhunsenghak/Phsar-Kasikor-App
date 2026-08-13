@@ -20,6 +20,17 @@ class FarmerCertificateApi {
     return BaseApi.handleResponse(response) as List<dynamic>;
   }
 
+  /// Public-safe directory of approved certificates (farmer name + cert
+  /// type only) — used to resolve buyer-facing "certified farmer" badges,
+  /// which the admin-gated/self-only `fetchCertificates` can't answer for
+  /// anyone browsing a farmer they don't own the certificate for.
+  static Future<List<dynamic>> fetchPublicCertificateDirectory() async {
+    final response = await http.get(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/farmer-certificates/public'),
+    );
+    return BaseApi.handleResponse(response) as List<dynamic>;
+  }
+
   static Future<Map<String, dynamic>> reviewCertificate(String token, String certId, String status, {String? feedback}) async {
     final response = await http.put(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/farmer-certificates/$certId/review'),

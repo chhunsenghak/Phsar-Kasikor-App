@@ -242,6 +242,10 @@ def get_contracts_for_user(db: Session, user_id: str, skip: int = 0, limit: int 
         (Contract.seller_id == user_id) | (Contract.buyer_id == user_id)
     ).offset(skip).limit(limit).all()
 
+def get_all_contracts(db: Session, skip: int = 0, limit: int = 100) -> List[Contract]:
+    """Every contract platform-wide, regardless of buyer/seller — admin-only."""
+    return db.query(Contract).offset(skip).limit(limit).all()
+
 def create_contract(db: Session, contract_in: ContractCreate, proposer_id: str) -> Contract:
     if not contract_in.items:
         raise Exception(errors.NO_ITEMS_IN_CONTRACT)

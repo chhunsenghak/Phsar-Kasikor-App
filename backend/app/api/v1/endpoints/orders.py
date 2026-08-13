@@ -52,6 +52,20 @@ def read_pending_khqr_payments(
     """
     return order_service.get_pending_khqr_payments(db, skip=skip, limit=limit)
 
+@router.get("/admin/all", response_model=List[OrderOut])
+def read_all_orders(
+    db: Session = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
+    _current_user: User = Depends(deps.get_current_admin_user)
+) -> Any:
+    """
+    Every order platform-wide, regardless of buyer/seller — the admin
+    "wholesale history" view. Admin-only, and must be declared before
+    /{order_id} so "admin" doesn't get swallowed as an order_id path segment.
+    """
+    return order_service.get_all_orders(db, skip=skip, limit=limit)
+
 @router.get("/{order_id}", response_model=OrderOut)
 def read_order(
     order_id: str,

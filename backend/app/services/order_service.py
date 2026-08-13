@@ -135,6 +135,12 @@ def get_orders_for_user(db: Session, user_id: str, skip: int = 0, limit: int = 1
         (Order.buyer_id == user_id) | (Order.seller_id == user_id)
     ).order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
 
+def get_all_orders(db: Session, skip: int = 0, limit: int = 100) -> List[Order]:
+    """Every order platform-wide, regardless of buyer/seller — admin-only."""
+    return db.query(Order).options(
+        joinedload(Order.buyer), joinedload(Order.seller)
+    ).order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
+
 def create_order(db: Session, order_in: OrderCreate, buyer_id: str) -> Order:
     total_amount = 0.0
     total_weight_kg = 0.0

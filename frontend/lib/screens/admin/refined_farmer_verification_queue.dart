@@ -9,8 +9,21 @@ import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
 import 'admin_verification_detail.dart';
 
-class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
+class RefinedFarmerVerificationQueueScreen extends StatefulWidget {
   const RefinedFarmerVerificationQueueScreen({super.key});
+
+  @override
+  State<RefinedFarmerVerificationQueueScreen> createState() => _RefinedFarmerVerificationQueueScreenState();
+}
+
+class _RefinedFarmerVerificationQueueScreenState extends State<RefinedFarmerVerificationQueueScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppState>(context, listen: false).refreshFarmerCertificates();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +74,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVerificationTab(BuildContext context, AppState state, List<FarmerVerification> pendingVerifications) {
+  Widget _buildVerificationTab(BuildContext context, AppState state, List<FarmerCertificate> pendingVerifications) {
     if (pendingVerifications.isEmpty) {
       return _buildEmptyState(
         state.translate('all_caught_up'),
@@ -91,7 +104,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    item.name,
+                    item.farmerName,
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -116,11 +129,11 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              _buildInfoRow(state.translate('farm_name'), item.farmName),
-              const SizedBox(height: 6),
-              _buildInfoRow(state.translate('location_label'), item.location),
-              const SizedBox(height: 6),
-              _buildInfoRow(state.translate('crop_focus'), item.cropTypes),
+              _buildInfoRow(state.translate('certification_standard'), state.translate('cert_type_${item.certificateType}')),
+              if (item.issuingBody != null && item.issuingBody!.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _buildInfoRow(state.translate('issuing_authority'), item.issuingBody!),
+              ],
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -132,7 +145,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      item.resolvedDocUrl.startsWith('http') || item.resolvedDocUrl.startsWith('/')
+                      item.resolvedDocumentUrl.startsWith('http') || item.resolvedDocumentUrl.startsWith('/')
                           ? Icons.image_rounded
                           : Icons.picture_as_pdf_outlined,
                       color: AppColors.primary,
@@ -141,7 +154,7 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        item.resolvedDocUrl,
+                        item.resolvedDocumentUrl,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
@@ -169,8 +182,11 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                     child: CustomButton(
                       text: state.translate('accept'),
                       height: 44,
-                      onPressed: () {
-                        state.approveFarmer(item.id);
+                      onPressed: () async {
+                        final errorCode = await state.reviewFarmerCertificate(item.id, 'approved');
+                        if (errorCode != null && context.mounted) {
+                          AppSnackBar.error(context, translateErrorCode(state, errorCode));
+                        }
                       },
                     ),
                   ),
@@ -181,8 +197,11 @@ class RefinedFarmerVerificationQueueScreen extends StatelessWidget {
                       height: 44,
                       backgroundColor: AppColors.errorContainer,
                       textColor: AppColors.onErrorContainer,
-                      onPressed: () {
-                        state.rejectFarmer(item.id);
+                      onPressed: () async {
+                        final errorCode = await state.reviewFarmerCertificate(item.id, 'rejected');
+                        if (errorCode != null && context.mounted) {
+                          AppSnackBar.error(context, translateErrorCode(state, errorCode));
+                        }
                       },
                     ),
                   ),

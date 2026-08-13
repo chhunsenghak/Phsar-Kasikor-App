@@ -126,7 +126,11 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
       _isLoadingOrders = true;
     });
     try {
-      final list = await OrderApi.fetchOrders(state.token!);
+      // Admins review every order on the platform, not just ones they
+      // happen to be a buyer/seller party to.
+      final list = state.currentRole == 'admin'
+          ? await OrderApi.fetchAllOrdersAdmin(state.token!)
+          : await OrderApi.fetchOrders(state.token!);
       setState(() {
         _orders = list;
       });
@@ -377,86 +381,104 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     return rawUnit;
   }
 
-  Widget _buildStatusBadge(AppState state, String rawStatus) {
+  ({Color bg, Color fg, IconData icon, String textKey}) _statusVisual(
+    String rawStatus,
+  ) {
     final s = rawStatus.toLowerCase();
-    Color bg;
-    Color fg;
-    IconData icon;
-    String textKey;
 
     if (s == 'accepted' ||
         s == 'paid' ||
         s == 'completed' ||
         s == 'delivered') {
-      bg = AppColors.primary.withValues(alpha: 0.12);
-      fg = AppColors.primary;
-      icon = Icons.check_circle_rounded;
-      textKey = s == 'accepted'
-          ? 'status_accepted'
-          : (s == 'paid'
-                ? 'status_paid'
-                : (s == 'delivered' ? 'status_delivered' : 'status_completed'));
+      return (
+        bg: AppColors.primary.withValues(alpha: 0.12),
+        fg: AppColors.primary,
+        icon: Icons.check_circle_rounded,
+        textKey: s == 'accepted'
+            ? 'status_accepted'
+            : (s == 'paid'
+                  ? 'status_paid'
+                  : (s == 'delivered' ? 'status_delivered' : 'status_completed')),
+      );
     } else if (s == 'rejected' || s == 'cancelled') {
-      bg = AppColors.error.withValues(alpha: 0.12);
-      fg = AppColors.error;
-      icon = Icons.cancel_rounded;
-      textKey = s == 'rejected' ? 'status_rejected' : 'status_cancelled';
+      return (
+        bg: AppColors.error.withValues(alpha: 0.12),
+        fg: AppColors.error,
+        icon: Icons.cancel_rounded,
+        textKey: s == 'rejected' ? 'status_rejected' : 'status_cancelled',
+      );
     } else if (s == 'counter_offered' || s == 'counter') {
-      bg = Colors.blue.withValues(alpha: 0.12);
-      fg = Colors.blue.shade700;
-      icon = Icons.swap_horizontal_circle_rounded;
-      textKey = 'status_countered';
+      return (
+        bg: Colors.blue.withValues(alpha: 0.12),
+        fg: Colors.blue.shade700,
+        icon: Icons.swap_horizontal_circle_rounded,
+        textKey: 'status_countered',
+      );
     } else if (s == 'pending_deposit') {
-      bg = Colors.amber.withValues(alpha: 0.15);
-      fg = Colors.amber.shade900;
-      icon = Icons.qr_code_2_rounded;
-      textKey = 'status_pending_deposit';
+      return (
+        bg: Colors.amber.withValues(alpha: 0.15),
+        fg: Colors.amber.shade900,
+        icon: Icons.qr_code_2_rounded,
+        textKey: 'status_pending_deposit',
+      );
     } else if (s == 'pending_final_payment') {
-      bg = Colors.deepOrange.withValues(alpha: 0.12);
-      fg = Colors.deepOrange.shade700;
-      icon = Icons.local_shipping_outlined;
-      textKey = 'status_pending_final_payment';
+      return (
+        bg: Colors.deepOrange.withValues(alpha: 0.12),
+        fg: Colors.deepOrange.shade700,
+        icon: Icons.local_shipping_outlined,
+        textKey: 'status_pending_final_payment',
+      );
     } else if (s == 'in_fulfillment') {
-      bg = Colors.blue.withValues(alpha: 0.12);
-      fg = Colors.blue.shade700;
-      icon = Icons.local_shipping_rounded;
-      textKey = 'status_in_fulfillment';
+      return (
+        bg: Colors.blue.withValues(alpha: 0.12),
+        fg: Colors.blue.shade700,
+        icon: Icons.local_shipping_rounded,
+        textKey: 'status_in_fulfillment',
+      );
     } else if (s == 'confirmed' || s == 'shipped') {
       // Order-only mid-fulfillment states — CONFIRMED (farmer is packaging)
       // and SHIPPED (in transit / ready for pickup) previously fell through
       // to the "else" branch below and rendered as a generic amber
       // "PENDING" badge, so a fully-shipped order looked identical to one
       // that had just been placed.
-      bg = Colors.blue.withValues(alpha: 0.12);
-      fg = Colors.blue.shade700;
-      icon = s == 'shipped'
-          ? Icons.local_shipping_rounded
-          : Icons.inventory_2_rounded;
-      textKey = s == 'shipped' ? 'status_shipped' : 'status_confirmed';
+      return (
+        bg: Colors.blue.withValues(alpha: 0.12),
+        fg: Colors.blue.shade700,
+        icon: s == 'shipped'
+            ? Icons.local_shipping_rounded
+            : Icons.inventory_2_rounded,
+        textKey: s == 'shipped' ? 'status_shipped' : 'status_confirmed',
+      );
     } else {
-      bg = Colors.amber.withValues(alpha: 0.15);
-      fg = Colors.amber.shade900;
-      icon = Icons.schedule_rounded;
-      textKey = s == 'placed' ? 'status_placed' : 'status_pending';
+      return (
+        bg: Colors.amber.withValues(alpha: 0.15),
+        fg: Colors.amber.shade900,
+        icon: Icons.schedule_rounded,
+        textKey: s == 'placed' ? 'status_placed' : 'status_pending',
+      );
     }
+  }
+
+  Widget _buildStatusBadge(AppState state, String rawStatus) {
+    final visual = _statusVisual(rawStatus);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: bg,
+        color: visual.bg,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: fg),
+          Icon(visual.icon, size: 12, color: visual.fg),
           const SizedBox(width: 4),
           Text(
-            state.translate(textKey),
+            state.translate(visual.textKey),
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: fg,
+              color: visual.fg,
             ),
           ),
         ],
@@ -717,9 +739,8 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
+        _buildFilterBar(
+          Row(
             children: [
               Expanded(
                 child: _buildStatusFilterChips(
@@ -769,6 +790,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
 
                     return CustomCard(
                       padding: const EdgeInsets.all(18),
+                      elevationLevel: 2,
                       onTap: () =>
                           _showContractDetailsSheet(context, state, contract),
                       child: Column(
@@ -846,6 +868,19 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                                       const SizedBox(height: 2),
                                       Text(
                                         '${state.translate('seller')}: ${contract.sellerName}',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: AppColors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                    // Admins aren't a party to the contract —
+                                    // show the buyer too, since "seller"
+                                    // alone doesn't identify the deal.
+                                    if (state.currentRole == 'admin' && contract.buyerName.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${state.translate('buyer')}: ${contract.buyerName}',
                                         style: GoogleFonts.inter(
                                           fontSize: 13,
                                           color: AppColors.onSurfaceVariant,
@@ -1041,6 +1076,23 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                 ),
         ),
       ],
+    );
+  }
+
+  /// Wraps the status-chip row + tune button in its own visually distinct
+  /// band, separated from the tab bar above and the list below, so filtering
+  /// doesn't read as fused to the tab switcher.
+  Widget _buildFilterBar(Widget child) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        border: Border(
+          bottom: BorderSide(color: AppColors.outlineVariant, width: 1),
+        ),
+      ),
+      child: child,
     );
   }
 
@@ -1411,9 +1463,8 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
+        _buildFilterBar(
+          Row(
             children: [
               Expanded(
                 child: _buildStatusFilterChips(
@@ -1504,13 +1555,18 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                           );
 
                     final bool isFarmerView = state.currentRole == 'farmer';
-                    final String counterpartyName = isFarmerView
-                        ? (order['buyer_name']?.toString().isNotEmpty == true
-                              ? order['buyer_name'].toString()
-                              : state.translate('registered_buyer'))
-                        : (order['seller_name']?.toString().isNotEmpty == true
-                              ? order['seller_name'].toString()
-                              : firstProduct.farmerName);
+                    final String buyerDisplayName = order['buyer_name']?.toString().isNotEmpty == true
+                        ? order['buyer_name'].toString()
+                        : state.translate('registered_buyer');
+                    final String sellerDisplayName = order['seller_name']?.toString().isNotEmpty == true
+                        ? order['seller_name'].toString()
+                        : firstProduct.farmerName;
+                    // Admins aren't a party to the order — show both sides
+                    // instead of picking one, since neither is "the other
+                    // side" from their vantage point.
+                    final String counterpartyName = state.currentRole == 'admin'
+                        ? '$buyerDisplayName → $sellerDisplayName'
+                        : (isFarmerView ? buyerDisplayName : sellerDisplayName);
                     final Widget? footerFlag = _buildOrderFooterFlag(
                       state,
                       order,
@@ -1520,65 +1576,95 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
 
                     return CustomCard(
                       padding: const EdgeInsets.all(16),
+                      elevationLevel: 2,
                       onTap: () =>
                           _showOrderDetailsSheet(context, state, order),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Headline row: what was ordered, and its status —
-                          // the two things worth knowing at a glance.
+                          // Headline: a colored icon block anchors the card at
+                          // a glance, with the product name, status, and
+                          // counterparty/date grouped beside it.
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  items.length > 1
-                                      ? '${firstProduct.name} +${items.length - 1}'
-                                      : firstProduct.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color: AppColors.onSurface,
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryContainer.withValues(
+                                    alpha: 0.15,
                                   ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.shopping_bag_rounded,
+                                  color: AppColors.primary,
+                                  size: 22,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              _buildStatusBadge(state, status),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-
-                          // Meta row: who's on the other side, and when — one
-                          // line instead of two separate icon+label rows.
-                          Row(
-                            children: [
-                              Icon(
-                                isFarmerView
-                                    ? Icons.person_outline_rounded
-                                    : Icons.storefront_outlined,
-                                size: 13,
-                                color: AppColors.outline,
-                              ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  counterpartyName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppColors.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _orderDateTimeText(state, order),
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: AppColors.outline,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            items.length > 1
+                                                ? '${firstProduct.name} +${items.length - 1}'
+                                                : firstProduct.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                              color: AppColors.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _buildStatusBadge(state, status),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    // Who's on the other side, and when — one
+                                    // line instead of two icon+label rows.
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          isFarmerView
+                                              ? Icons.person_outline_rounded
+                                              : Icons.storefront_outlined,
+                                          size: 13,
+                                          color: AppColors.outline,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            counterpartyName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              color: AppColors.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _orderDateTimeText(state, order),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: AppColors.outline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -1613,7 +1699,7 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                                 _formatCurrency(total, currency),
                                 style: GoogleFonts.inter(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 17,
+                                  fontSize: 19,
                                   color: AppColors.primary,
                                 ),
                               ),
@@ -2821,13 +2907,15 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
     // incoming order isn't theirs to unilaterally cancel.
     final bool isCancellable =
         state.currentRole == 'buyer' && status == 'PLACED';
-    final String counterpartyName = isFarmerView
-        ? (order['buyer_name']?.toString().isNotEmpty == true
-              ? order['buyer_name'].toString()
-              : state.translate('registered_buyer'))
-        : (order['seller_name']?.toString().isNotEmpty == true
-              ? order['seller_name'].toString()
-              : state.translate('registered_seller'));
+    final String buyerDisplayName = order['buyer_name']?.toString().isNotEmpty == true
+        ? order['buyer_name'].toString()
+        : state.translate('registered_buyer');
+    final String sellerDisplayName = order['seller_name']?.toString().isNotEmpty == true
+        ? order['seller_name'].toString()
+        : state.translate('registered_seller');
+    final String counterpartyName = state.currentRole == 'admin'
+        ? '$buyerDisplayName → $sellerDisplayName'
+        : (isFarmerView ? buyerDisplayName : sellerDisplayName);
 
     showModalBottomSheet(
       context: context,

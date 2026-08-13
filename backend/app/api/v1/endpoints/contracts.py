@@ -67,6 +67,20 @@ def read_pending_contract_final_payments(
     """
     return contract_service.get_pending_contract_final_payments(db, skip=skip, limit=limit)
 
+@router.get("/admin/all", response_model=List[ContractOut])
+def read_all_contracts(
+    db: Session = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
+    _current_user: User = Depends(deps.get_current_admin_user)
+) -> Any:
+    """
+    Every wholesale agreement platform-wide, regardless of buyer/seller — the
+    admin "wholesale history" view. Admin-only, and must be declared before
+    /{contract_id} for the same reason as the pending-* routes above.
+    """
+    return contract_service.get_all_contracts(db, skip=skip, limit=limit)
+
 @router.get("/{contract_id}", response_model=ContractOut)
 def read_contract(
     contract_id: str,

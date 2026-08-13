@@ -43,5 +43,7 @@ class AppState extends BaseAppState with
     await refreshContracts();
     await refreshMarketPrices();
     await refreshAddressRequests();
+    await refreshFarmerCertificates();
+    await refreshPublicCertificateDirectory();
   }
 }

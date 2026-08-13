@@ -11,6 +11,15 @@ class ContractApi {
     return BaseApi.handleResponse(response) as List<dynamic>;
   }
 
+  /// Every contract platform-wide, regardless of buyer/seller — admin only.
+  static Future<List<dynamic>> fetchAllContractsAdmin(String token, {int limit = 1000}) async {
+    final response = await http.get(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/contracts/admin/all?limit=$limit'),
+      headers: BaseApi.getHeaders(token, json: false),
+    );
+    return BaseApi.handleResponse(response) as List<dynamic>;
+  }
+
   static Future<Map<String, dynamic>> createContract(String token, Map<String, dynamic> contractData) async {
     final response = await http.post(
       Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/contracts/'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api/contract_api.dart';
+import '../../services/api/farmer_certificate_api.dart';
 import '../../utils/api_error.dart';
 import 'base_app_state.dart';
 
@@ -62,72 +63,83 @@ mixin ContractStateMixin on BaseAppState {
   List<BidOffer> get negotiations => _negotiations;
 
   // --- Farmer Verification Queue (Admin) ---
-  final List<FarmerVerification> _verifications = [
-    FarmerVerification(
-      id: 'v_1',
-      name: 'Keo Sarath',
-      farmName: 'Battambang Rice Farms',
-      location: 'Battambang',
-      cropTypes: 'Jasmine Rice, Brown Rice',
-      docUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=600',
-      certType: 'organic',
-      status: 'pending',
-    ),
-    FarmerVerification(
-      id: 'v_2',
-      name: 'Nguon Srey',
-      farmName: 'Srey Mango Plantation',
-      location: 'Kampong Cham',
-      cropTypes: 'Keo Romeat Mango',
-      docUrl: 'https://images.unsplash.com/photo-1601597111158-2fceff270190?q=80&w=600',
-      certType: 'gap',
-      status: 'pending',
-    ),
-  ];
-  List<FarmerVerification> get verifications => _verifications;
+  // Full list (all statuses) — only ever populated for an admin; the
+  // backend restricts non-admins to their own certificates only.
+  List<FarmerCertificate> _farmerCertificates = [];
+  List<FarmerCertificate> get verifications => _farmerCertificates;
+
+  // Approved-only, name -> certificate type — populated from the public
+  // directory endpoint so any logged-in user (not just admins) can resolve
+  // a buyer-facing "certified farmer" badge for a farmer they don't own.
+  Map<String, String> _publicCertTypeByFarmerName = {};
+
+  Future<void> refreshFarmerCertificates() async {
+    if (token == null) return;
+    try {
+      final list = await FarmerCertificateApi.fetchCertificates(token!);
+      _farmerCertificates = list
+          .map((json) => FarmerCertificate.fromJson(json as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to refresh farmer certificates: $e');
+    }
+  }
+
+  Future<void> refreshPublicCertificateDirectory() async {
+    try {
+      final list = await FarmerCertificateApi.fetchPublicCertificateDirectory();
+      final Map<String, String> byName = {};
+      for (var entry in list) {
+        final name = entry['farmer_name']?.toString().trim().toLowerCase();
+        final certType = entry['certificate_type']?.toString();
+        if (name != null && name.isNotEmpty && certType != null) {
+          byName[name] = certType;
+        }
+      }
+      _publicCertTypeByFarmerName = byName;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to refresh public certificate directory: $e');
+    }
+  }
 
   String getFarmerCertType(String farmerName) {
     final cleanName = farmerName.replaceAll(RegExp(r'\s*\(Farmer\)\s*'), '').trim().toLowerCase();
-    for (var v in _verifications) {
-      final cleanVName = v.name.replaceAll(RegExp(r'\s*\(Farmer\)\s*'), '').trim().toLowerCase();
-      final cleanVFarm = v.farmName.toLowerCase();
-      if ((cleanVName == cleanName || cleanVFarm == cleanName || cleanVName.contains(cleanName)) && v.status == 'approved') {
-        return v.certType;
+    return _publicCertTypeByFarmerName[cleanName] ?? 'none';
+  }
+
+  /// Returns null on success, or the raw backend error code on failure —
+  /// same convention as [LocationStateMixin.approveAddressRequest].
+  Future<String?> reviewFarmerCertificate(String certId, String status, {String? feedback}) async {
+    if (token == null) return 'NOT_LOGGED_IN';
+    try {
+      await FarmerCertificateApi.reviewCertificate(token!, certId, status, feedback: feedback);
+      final idx = _farmerCertificates.indexWhere((c) => c.id == certId);
+      if (idx != -1) {
+        final name = _farmerCertificates[idx].farmerName;
+        if (status == 'approved') {
+          addNotification('Farmer Verified', "$name's certificate has been approved.");
+        }
       }
-    }
-    if (cleanName == 'chan sopheap' || cleanName == 'chan sopheap (farmer)') {
-      return 'organic';
-    }
-    return 'none';
-  }
-
-  void addVerification(FarmerVerification verification) {
-    _verifications.add(verification);
-    notifyListeners();
-  }
-
-  void approveFarmer(String verificationId) {
-    final idx = _verifications.indexWhere((v) => v.id == verificationId);
-    if (idx != -1) {
-      _verifications[idx].status = 'approved';
-      final name = _verifications[idx].name;
-      addNotification('Farmer Verified', '$name\'s farm has been approved.');
-      notifyListeners();
-    }
-  }
-
-  void rejectFarmer(String verificationId) {
-    final idx = _verifications.indexWhere((v) => v.id == verificationId);
-    if (idx != -1) {
-      _verifications[idx].status = 'rejected';
-      notifyListeners();
+      await refreshFarmerCertificates();
+      await refreshPublicCertificateDirectory();
+      return null;
+    } catch (e) {
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      debugPrint('Failed to review farmer certificate: $errMsg');
+      return errMsg;
     }
   }
 
   Future<void> refreshContracts() async {
     if (token == null) return;
     try {
-      final List<dynamic> backendContracts = await ContractApi.fetchContracts(token!);
+      // Admins review the platform's whole order/contract history, not just
+      // agreements they happen to be a buyer/seller party to.
+      final List<dynamic> backendContracts = currentRole == 'admin'
+          ? await ContractApi.fetchAllContractsAdmin(token!)
+          : await ContractApi.fetchContracts(token!);
       final List<BidOffer> loaded = [];
       for (var json in backendContracts) {
         final List<dynamic> rawItems = json['items'] ?? [];

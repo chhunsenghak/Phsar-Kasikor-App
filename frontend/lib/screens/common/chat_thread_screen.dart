@@ -343,6 +343,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
                 decoration: BoxDecoration(
                   color: isMine ? AppColors.primary : AppColors.surfaceContainerLow,
                   borderRadius: radius,
+                  border: isMine
+                      ? null
+                      : Border.all(color: AppColors.outlineVariant, width: 1),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.06),
@@ -407,7 +410,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
         titleSpacing: 0,
         title: Row(
           children: [
-            UserAvatar(name: widget.otherUserName, seed: widget.otherUserId, radius: 16),
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 1.5),
+              ),
+              child: UserAvatar(name: widget.otherUserName, seed: widget.otherUserId, radius: 16),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -424,7 +434,15 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
       body: Column(
         children: [
           Expanded(
-            child: _isLoading
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topCenter,
+                  radius: 1.4,
+                  colors: [Colors.white, AppColors.background],
+                ),
+              ),
+              child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                 : _error != null
                     ? Center(child: Text(_error!, style: GoogleFonts.inter(color: AppColors.error)))
@@ -455,6 +473,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
                             padding: const EdgeInsets.all(16),
                             children: _buildMessageWidgets(state, myId),
                           ),
+            ),
           ),
           SafeArea(
             top: false,

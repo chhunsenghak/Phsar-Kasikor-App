@@ -6,9 +6,10 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../utils/api_error.dart';
 
 class AdminVerificationDetailScreen extends StatelessWidget {
-  final FarmerVerification verification;
+  final FarmerCertificate verification;
 
   const AdminVerificationDetailScreen({super.key, required this.verification});
 
@@ -57,19 +58,11 @@ class AdminVerificationDetailScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              verification.name,
+                              verification.farmerName,
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              state.translate('location_prefix', arguments: {'location': verification.location}),
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppColors.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -78,13 +71,13 @@ class AdminVerificationDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const Divider(height: 32),
-                  _buildDetailRow(state.translate('farm_name'), verification.farmName),
+                  _buildDetailRow(state.translate('certification_standard'), state.translate('cert_type_${verification.certificateType}')),
+                  if (verification.issuingBody != null && verification.issuingBody!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildDetailRow(state.translate('issuing_authority'), verification.issuingBody!),
+                  ],
                   const SizedBox(height: 12),
-                  _buildDetailRow(state.translate('cultivated_crops'), verification.cropTypes),
-                  const SizedBox(height: 12),
-                  _buildDetailRow(state.translate('certification_standard'), verification.certType.toUpperCase()),
-                  const SizedBox(height: 12),
-                  _buildDetailRow(state.translate('document_file'), verification.resolvedDocUrl, isImage: true),
+                  _buildDetailRow(state.translate('document_file'), verification.resolvedDocumentUrl, isImage: true),
                   const SizedBox(height: 12),
                   _buildDetailRow(state.translate('current_status'), verification.status.toUpperCase()),
                 ],
@@ -106,10 +99,15 @@ class AdminVerificationDetailScreen extends StatelessWidget {
                   child: CustomButton(
                     text: state.translate('approve_verify'),
                     icon: Icons.check_circle_outline_rounded,
-                    onPressed: () {
-                      state.approveFarmer(verification.id);
+                    onPressed: () async {
+                      final errorCode = await state.reviewFarmerCertificate(verification.id, 'approved');
+                      if (!context.mounted) return;
+                      if (errorCode != null) {
+                        AppSnackBar.error(context, translateErrorCode(state, errorCode));
+                        return;
+                      }
                       Navigator.pop(context);
-                      AppSnackBar.success(context, state.translate('approved_verified_msg', arguments: {'name': verification.name}));
+                      AppSnackBar.success(context, state.translate('approved_verified_msg', arguments: {'name': verification.farmerName}));
                     },
                   ),
                 ),
@@ -120,10 +118,15 @@ class AdminVerificationDetailScreen extends StatelessWidget {
                     icon: Icons.cancel_outlined,
                     backgroundColor: AppColors.errorContainer,
                     textColor: AppColors.onErrorContainer,
-                    onPressed: () {
-                      state.rejectFarmer(verification.id);
+                    onPressed: () async {
+                      final errorCode = await state.reviewFarmerCertificate(verification.id, 'rejected');
+                      if (!context.mounted) return;
+                      if (errorCode != null) {
+                        AppSnackBar.error(context, translateErrorCode(state, errorCode));
+                        return;
+                      }
                       Navigator.pop(context);
-                      AppSnackBar.warning(context, state.translate('declined_verification_msg', arguments: {'name': verification.name}));
+                      AppSnackBar.warning(context, state.translate('declined_verification_msg', arguments: {'name': verification.farmerName}));
                     },
                   ),
                 ),

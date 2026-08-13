@@ -22,11 +22,7 @@ class SubmitCertificateScreen extends StatefulWidget {
 
 class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _numberController = TextEditingController();
   final _authorityController = TextEditingController();
-  final _issueDateController = TextEditingController(text: '2026-01-01');
-  final _expiryDateController = TextEditingController(text: '2027-12-31');
 
   XFile? _selectedImageFile;
   Uint8List? _selectedImageBytes;
@@ -35,11 +31,7 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _numberController.dispose();
     _authorityController.dispose();
-    _issueDateController.dispose();
-    _expiryDateController.dispose();
     super.dispose();
   }
 
@@ -75,55 +67,27 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
       return;
     }
     
+    final String? token = state.token;
+    if (token == null) return;
+
     setState(() {
       _isSubmitting = true;
     });
 
-    final String? token = state.token;
-    String docUrl = '';
-
     try {
-      // Upload certificate image first
-      try {
-        if (token != null) {
-          docUrl = await UploadApi.uploadImage(
-            token,
-            _selectedImageBytes!,
-            _selectedImageFile!.name,
-          );
-        } else {
-          docUrl = _selectedImageFile!.name;
-        }
-      } catch (e) {
-        debugPrint('Image upload failed: $e');
-        docUrl = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=600';
-      }
-
-      if (token != null) {
-        await FarmerCertificateApi.submitCertificate(token, {
-          'certificate_name': _nameController.text,
-          'certificate_number': _numberController.text,
-          'issuing_authority': _authorityController.text,
-          'issue_date': _issueDateController.text,
-          'expiry_date': _expiryDateController.text,
-          'validity_status': 'UNDER_REVIEW',
-          'doc_url': docUrl,
-        });
-      }
-
-      // Add to local state so the admin dashboard queue works immediately in prototyping
-      final newVerification = FarmerVerification(
-        id: 'v_${DateTime.now().millisecondsSinceEpoch}',
-        name: state.userName,
-        farmName: _authorityController.text.isNotEmpty ? _authorityController.text : 'My Family Farm',
-        location: 'Battambang',
-        cropTypes: _nameController.text,
-        docUrl: docUrl,
-        certType: _selectedCertType,
-        status: 'pending',
+      final String docUrl = await UploadApi.uploadImage(
+        token,
+        _selectedImageBytes!,
+        _selectedImageFile!.name,
       );
-      state.addVerification(newVerification);
-      
+
+      await FarmerCertificateApi.submitCertificate(token, {
+        'certificate_type': _selectedCertType,
+        'issuing_body': _authorityController.text,
+        'document_url': docUrl,
+      });
+      await state.refreshFarmerCertificates();
+
       if (mounted) {
         AppSnackBar.success(context, state.translate('cert_submit_success'));
         Navigator.pop(context);
@@ -244,44 +208,10 @@ class _SubmitCertificateScreenState extends State<SubmitCertificateScreen> {
               ),
               const SizedBox(height: 16),
               CustomInput(
-                label: state.translate('cert_name_type'),
-                hintText: state.translate('cert_name_hint'),
-                controller: _nameController,
-                validator: (val) => val == null || val.isEmpty ? state.translate('please_enter_name') : null,
-              ),
-              const SizedBox(height: 16),
-              CustomInput(
-                label: state.translate('cert_number'),
-                hintText: state.translate('cert_number_hint'),
-                controller: _numberController,
-                validator: (val) => val == null || val.isEmpty ? state.translate('please_enter_number') : null,
-              ),
-              const SizedBox(height: 16),
-              CustomInput(
                 label: state.translate('issuing_authority'),
                 hintText: state.translate('issuing_authority_hint'),
                 controller: _authorityController,
                 validator: (val) => val == null || val.isEmpty ? state.translate('please_enter_authority') : null,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomInput(
-                      label: state.translate('issue_date'),
-                      hintText: 'YYYY-MM-DD',
-                      controller: _issueDateController,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: CustomInput(
-                      label: state.translate('expiry_date'),
-                      hintText: 'YYYY-MM-DD',
-                      controller: _expiryDateController,
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: 32),
               if (_isSubmitting)

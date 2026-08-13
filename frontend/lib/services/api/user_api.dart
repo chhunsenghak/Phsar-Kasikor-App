@@ -3,6 +3,14 @@ import 'package:http/http.dart' as http;
 import 'base_api.dart';
 
 class UserApi {
+  static Future<List<dynamic>> fetchAllUsers(String token, {int limit = 1000}) async {
+    final response = await http.get(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/users/?limit=$limit'),
+      headers: BaseApi.getHeaders(token),
+    );
+    return BaseApi.handleResponse(response) as List<dynamic>;
+  }
+
   static Future<Map<String, dynamic>> updateProfileLocation(
     String token, {
     required String province,

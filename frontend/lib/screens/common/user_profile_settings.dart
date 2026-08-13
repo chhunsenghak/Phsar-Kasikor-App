@@ -14,7 +14,6 @@ import '../../services/api/auth_api.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
 import 'login_screen.dart';
-import '../farmer/submit_certificate_screen.dart';
 import 'order_contract_history_screen.dart';
 import 'help_disputes_screen.dart';
 
@@ -299,98 +298,121 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   Widget _buildProfileHeader(AppState state) {
     final avatarImage = _getAvatarImage(state);
 
-    return CustomCard(
+    return Container(
       padding: const EdgeInsets.all(24),
-      elevationLevel: 2,
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => _pickProfileImage(context, state),
-            child: Stack(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.secondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppDesign.borderRadiusMd),
+        boxShadow: AppDesign.level2Shadow,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDesign.borderRadiusMd),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -20,
+              bottom: -30,
+              child: Icon(
+                Icons.person_rounded,
+                size: 140,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            Row(
               children: [
-                CircleAvatar(
-                  radius: 38,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                  backgroundImage: avatarImage,
-                  child: avatarImage == null
-                      ? const Icon(
-                          Icons.person_rounded,
-                          size: 44,
-                          color: AppColors.primary,
-                        )
-                      : null,
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
+                GestureDetector(
+                  onTap: () => _pickProfileImage(context, state),
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 38,
+                        backgroundColor: Colors.white.withValues(alpha: 0.15),
+                        backgroundImage: avatarImage,
+                        child: avatarImage == null
+                            ? const Icon(
+                                Icons.person_rounded,
+                                size: 44,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.userName,
+                        style: GoogleFonts.inter(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          state.translate('role_${state.currentRole}').toUpperCase(),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        state.translate('member_since'),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  state.userName,
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    state.translate('role_${state.currentRole}').toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  state.translate('member_since'),
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -403,7 +425,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
 
     return CustomCard(
       padding: const EdgeInsets.all(16),
-      borderSide: const BorderSide(color: AppColors.outlineVariant, width: 1),
+      elevationLevel: 2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -549,12 +571,10 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
 
     return CustomCard(
       padding: const EdgeInsets.all(16),
-      borderSide: BorderSide(
-        color: (hasAddress || state.currentRole == 'buyer')
-            ? AppColors.outlineVariant
-            : AppColors.error.withValues(alpha: 0.5),
-        width: 1,
-      ),
+      elevationLevel: 2,
+      borderSide: (hasAddress || state.currentRole == 'buyer')
+          ? BorderSide.none
+          : BorderSide(color: AppColors.error.withValues(alpha: 0.5), width: 1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1140,6 +1160,7 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
         const SizedBox(height: 12),
         CustomCard(
           padding: EdgeInsets.zero,
+          elevationLevel: 2,
           child: Column(
             children: [
               // App Language Custom Selector
@@ -1220,43 +1241,6 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                 ),
                 const Divider(height: 1),
               ],
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                leading: const Icon(
-                  Icons.settings_suggest_rounded,
-                  color: AppColors.primary,
-                ),
-                title: Text(
-                  state.translate('verification_docs'),
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-                subtitle: Text(
-                  state.translate('required_for_farmers'),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.outline,
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SubmitCertificateScreen(),
-                    ),
-                  );
-                },
-              ),
-              const Divider(height: 1),
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,

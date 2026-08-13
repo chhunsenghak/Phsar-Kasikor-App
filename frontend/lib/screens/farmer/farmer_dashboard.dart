@@ -121,23 +121,43 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
   Widget _buildHeader(BuildContext context) {
     final state = Provider.of<AppState>(context, listen: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(
-          state.translate('farmer_dashboard'),
-          style: GoogleFonts.inter(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.onSurface,
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.primaryContainer.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.dashboard_rounded,
+            color: AppColors.primary,
+            size: 22,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          state.translate('manage_crops_subtitle'),
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: AppColors.onSurfaceVariant,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                state.translate('farmer_dashboard'),
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                state.translate('manage_crops_subtitle'),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -148,6 +168,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     final state = Provider.of<AppState>(context, listen: false);
     return CustomCard(
       padding: const EdgeInsets.all(4),
+      elevationLevel: 2,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const ChatInboxScreen()),
@@ -186,60 +207,88 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CustomCard(
-          padding: const EdgeInsets.all(16),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SalesAnalyticsScreen(),
-              ),
-            );
-          },
-          child: Row(
-            children: [
-              const Icon(Icons.monetization_on_outlined, color: AppColors.primary, size: 28),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _isLoadingStats
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                          )
-                        // Both currencies, always — even at $0/៛0 — since
-                        // Cambodia trades in both and a farmer with only
-                        // KHR orders so far shouldn't look like USD isn't
-                        // tracked at all. Never blended into one number:
-                        // there's no exchange rate anywhere in this app.
-                        // Always on separate lines, not side by side, so
-                        // neither currency reads as an afterthought.
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                formatCurrency(_revenueByCurrency['USD'] ?? 0.0, 'USD'),
-                                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
-                              ),
-                              Text(
-                                formatCurrency(_revenueByCurrency['KHR'] ?? 0.0, 'KHR'),
-                                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
-                              ),
-                            ],
-                          ),
-                    const SizedBox(height: 2),
-                    Text(
-                      state.translate('yearly_sales_revenue'),
-                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SalesAnalyticsScreen(),
                 ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primary, AppColors.secondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+                boxShadow: AppDesign.level2Shadow,
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),
-            ],
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.monetization_on_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _isLoadingStats
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            // Both currencies, always — even at $0/៛0 — since
+                            // Cambodia trades in both and a farmer with only
+                            // KHR orders so far shouldn't look like USD isn't
+                            // tracked at all. Never blended into one number:
+                            // there's no exchange rate anywhere in this app.
+                            // Always on separate lines, not side by side, so
+                            // neither currency reads as an afterthought.
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    formatCurrency(_revenueByCurrency['USD'] ?? 0.0, 'USD'),
+                                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                  Text(
+                                    formatCurrency(_revenueByCurrency['KHR'] ?? 0.0, 'KHR'),
+                                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                        const SizedBox(height: 2),
+                        Text(
+                          state.translate('yearly_sales_revenue'),
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.85)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.white),
+                ],
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -304,12 +353,21 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   }) {
     return CustomCard(
       padding: const EdgeInsets.all(16),
+      elevationLevel: 2,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(height: 10),
           Text(
             value,
             style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: iconColor),

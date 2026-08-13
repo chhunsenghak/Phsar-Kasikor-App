@@ -19,6 +19,15 @@ class OrderApi {
     return BaseApi.handleResponse(response) as List<dynamic>;
   }
 
+  /// Every order platform-wide, regardless of buyer/seller — admin only.
+  static Future<List<dynamic>> fetchAllOrdersAdmin(String token, {int limit = 1000}) async {
+    final response = await http.get(
+      Uri.parse('${BaseApi.baseUrl}/api/${BaseApi.version}/orders/admin/all?limit=$limit'),
+      headers: BaseApi.getHeaders(token),
+    );
+    return BaseApi.handleResponse(response) as List<dynamic>;
+  }
+
   /// Creates one order containing [items], each `{'product_id': ..., 'quantity': ...}`.
   ///
   /// All items must belong to the same seller — the backend rejects a mixed

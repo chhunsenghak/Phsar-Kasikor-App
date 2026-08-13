@@ -74,6 +74,22 @@ def submit_certificate(
     res.farmer_name = current_user.username
     return res
 
+@router.get("/public")
+def get_public_certificate_directory(db: Session = Depends(get_db)) -> Any:
+    """
+    Public-safe directory of approved farmer certificates — just enough for
+    buyer-facing "certified farmer" trust badges (farmer name + certificate
+    type). No admin feedback, review dates, or document URLs — those stay
+    behind the authenticated /admin and self-service views above.
+    """
+    certs = db.query(FarmerCertificate).filter(FarmerCertificate.status == "approved").all()
+    results = []
+    for c in certs:
+        farmer = db.query(User).filter(User.id == c.user_id).first()
+        if farmer:
+            results.append({"farmer_name": farmer.username, "certificate_type": c.certificate_type})
+    return results
+
 @router.put("/{cert_id}/review", response_model=FarmerCertificateOut)
 def review_certificate(
     cert_id: str,

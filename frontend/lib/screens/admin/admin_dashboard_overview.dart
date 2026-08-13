@@ -6,6 +6,8 @@ import '../../models/app_state.dart';
 import '../../services/api/dispute_api.dart';
 import '../../services/api/order_api.dart';
 import '../../services/api/contract_api.dart';
+import '../../services/api/reports_api.dart';
+import '../../services/api/user_api.dart';
 import '../../widgets/custom_card.dart';
 import 'dispute_resolution_screen.dart';
 import 'payment_confirmation_screen.dart';
@@ -20,12 +22,48 @@ class AdminDashboardOverviewScreen extends StatefulWidget {
 class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScreen> {
   int _openDisputeCount = 0;
   int _pendingPaymentCount = 0;
+  int _totalFarmerCount = 0;
+  int _flaggedContentCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadDisputeCount();
     _loadPendingPaymentCount();
+    _loadFarmerCount();
+    _loadFlaggedContentCount();
+  }
+
+  Future<void> _loadFarmerCount() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    try {
+      final users = await UserApi.fetchAllUsers(state.token!);
+      if (!mounted) return;
+      // role_id 3 == FARMER — the same convention AppState already uses to
+      // resolve a logged-in user's role (see base_app_state.dart).
+      setState(() {
+        _totalFarmerCount = users.where((u) => u['role_id'] == 3).length;
+      });
+    } catch (_) {
+      // Stat card just keeps showing 0 if this fails — not critical to the
+      // rest of the dashboard.
+    }
+  }
+
+  Future<void> _loadFlaggedContentCount() async {
+    final state = Provider.of<AppState>(context, listen: false);
+    if (state.token == null) return;
+    try {
+      final reports = await ReportsApi.fetchAdminReports(state.token!);
+      if (!mounted) return;
+      setState(() {
+        _flaggedContentCount = reports.where((r) => r['status'] == 'pending').length;
+      });
+    } catch (_) {
+      // Stat card just keeps showing 0 if this fails — not critical to the
+      // rest of the dashboard.
+    }
   }
 
   Future<void> _loadDisputeCount() async {
@@ -100,7 +138,7 @@ class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScr
             children: [
               _buildAdminStatCard(
                 label: state.translate('total_farmers'),
-                value: '124',
+                value: '$_totalFarmerCount',
                 icon: Icons.agriculture_rounded,
                 color: AppColors.primary,
               ),
@@ -112,7 +150,7 @@ class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScr
               ),
               _buildAdminStatCard(
                 label: state.translate('flagged_content'),
-                value: '1',
+                value: '$_flaggedContentCount',
                 icon: Icons.flag_rounded,
                 color: AppColors.error,
               ),
@@ -141,65 +179,6 @@ class _AdminDashboardOverviewScreenState extends State<AdminDashboardOverviewScr
                 },
               ),
             ],
-          ),
-          const SizedBox(height: 24),
-
-          // Platform Activities Log
-          Text(
-            state.translate('system_activity_log'),
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.onSurface,
-            ),
-          ),
-          const SizedBox(height: 10),
-          CustomCard(
-            padding: EdgeInsets.zero,
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: 4,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final logs = [
-                  {'event': 'Farmer Chan Sopheap published "Organic Jasmine Rice"', 'time': '10 mins ago', 'type': 'listing'},
-                  {'event': 'Buyer Kosal Pich registered new profile', 'time': '40 mins ago', 'type': 'user'},
-                  {'event': 'Farmer Rithy Seng uploaded verification certificate', 'time': '1 hour ago', 'type': 'verification'},
-                  {'event': 'Listing "Fake Chemicals" flagged for removal', 'time': '3 hours ago', 'type': 'moderation'},
-                ];
-
-                final log = logs[index];
-                IconData logIcon = Icons.info_outline_rounded;
-                Color logColor = AppColors.primary;
-
-                if (log['type'] == 'user') {
-                  logIcon = Icons.person_add_outlined;
-                  logColor = AppColors.secondary;
-                } else if (log['type'] == 'verification') {
-                  logIcon = Icons.file_present_rounded;
-                  logColor = Colors.amber[800]!;
-                } else if (log['type'] == 'moderation') {
-                  logIcon = Icons.report_problem_outlined;
-                  logColor = AppColors.error;
-                }
-
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: logColor.withValues(alpha: 0.1),
-                    child: Icon(logIcon, color: logColor, size: 20),
-                  ),
-                  title: Text(
-                    log['event']!,
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                  trailing: Text(
-                    log['time']!,
-                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.outline),
-                  ),
-                );
-              },
-            ),
           ),
           const SizedBox(height: 32),
         ],

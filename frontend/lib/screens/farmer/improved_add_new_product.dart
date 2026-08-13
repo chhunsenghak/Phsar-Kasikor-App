@@ -182,15 +182,33 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           icon: const Icon(Icons.close_rounded, color: AppColors.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          widget.product != null
-              ? state.translate('edit_product_title')
-              : state.translate('add_product_title'),
-          style: GoogleFonts.inter(
-            color: AppColors.onSurface,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                widget.product != null ? Icons.edit_rounded : Icons.add_box_rounded,
+                color: AppColors.primary,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              widget.product != null
+                  ? state.translate('edit_product_title')
+                  : state.translate('add_product_title'),
+              style: GoogleFonts.inter(
+                color: AppColors.onSurface,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
         ),
       ),
       body: SingleChildScrollView(
@@ -200,21 +218,54 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildPhotoUploader(),
-              const SizedBox(height: 20),
-              _buildNameInput(),
+              CustomCard(
+                padding: const EdgeInsets.all(16),
+                elevationLevel: 2,
+                child: _buildPhotoUploader(),
+              ),
               const SizedBox(height: 16),
-              _buildCategoryChips(categories),
+              CustomCard(
+                padding: const EdgeInsets.all(16),
+                elevationLevel: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildNameInput(),
+                    const SizedBox(height: 16),
+                    _buildCategoryChips(categories),
+                  ],
+                ),
+              ),
               const SizedBox(height: 16),
-              _buildPricingRow(units),
+              CustomCard(
+                padding: const EdgeInsets.all(16),
+                elevationLevel: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 2, child: _buildPriceInput()),
+                        const SizedBox(width: 8),
+                        _buildCompactCurrencyToggle(),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildUnitDropdown(units),
+                    const SizedBox(height: 16),
+                    _buildStockField(),
+                    const SizedBox(height: 16),
+                    _buildWeightField(),
+                  ],
+                ),
+              ),
               const SizedBox(height: 16),
-              _buildCurrencySelection(),
-              const SizedBox(height: 16),
-              _buildStockField(),
-              const SizedBox(height: 16),
-              _buildWeightField(),
-              const SizedBox(height: 16),
-              _buildDescriptionField(),
+              CustomCard(
+                padding: const EdgeInsets.all(16),
+                elevationLevel: 2,
+                child: _buildDescriptionField(),
+              ),
               const SizedBox(height: 32),
               _buildSubmitButton(),
               const SizedBox(height: 40),
@@ -241,12 +292,20 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
         const SizedBox(height: 8),
         GestureDetector(
           onTap: _pickImage,
-          child: CustomCard(
+          child: Container(
+            clipBehavior: Clip.antiAlias,
             padding: _selectedImageBytes != null || (_uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty)
                 ? EdgeInsets.zero
                 : const EdgeInsets.symmetric(vertical: 40),
-            backgroundColor: AppColors.surfaceContainerLow,
-            borderSide: const BorderSide(color: AppColors.outlineVariant, style: BorderStyle.solid),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+              border: Border.all(
+                color: _selectedImageBytes != null || (_uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty)
+                    ? AppColors.outlineVariant
+                    : AppColors.primary.withValues(alpha: 0.35),
+              ),
+            ),
             child: _selectedImageBytes != null
                 ? SizedBox(
                     height: 150,
@@ -301,10 +360,18 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
                     : Center(
                         child: Column(
                           children: [
-                            const Icon(
-                              Icons.add_photo_alternate_outlined,
-                              size: 48,
-                              color: AppColors.primary,
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryContainer.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.add_photo_alternate_outlined,
+                                size: 30,
+                                color: AppColors.primary,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(
@@ -391,76 +458,29 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
     );
   }
 
-  Widget _buildPricingRow(List<String> units) {
+  Widget _buildPriceInput() {
     final state = Provider.of<AppState>(context);
-    return Row(
-      children: [
-        Expanded(
-          child: CustomInput(
-            label: state.translate('price_per_unit'),
-            hintText: state.translate('price_hint'),
-            controller: _priceController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-            ],
-            validator: (value) {
-              if (value == null || double.tryParse(value) == null) {
-                return state.translate('enter_valid_price');
-              }
-              return null;
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                state.translate('unit_type'),
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-                  border: Border.all(color: AppColors.outlineVariant),
-                ),
-                child: DropdownButton<String>(
-                  value: _selectedUnit,
-                  isExpanded: true,
-                  underline: const SizedBox(),
-                  items: units.map((u) {
-                    final translateKey = 'unit_$u';
-                    return DropdownMenuItem(
-                      value: u,
-                      child: Text(state.translate(translateKey)),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() {
-                        _selectedUnit = val;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+    return CustomInput(
+      label: state.translate('price_per_unit'),
+      hintText: state.translate('price_hint'),
+      controller: _priceController,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
       ],
+      validator: (value) {
+        if (value == null || double.tryParse(value) == null) {
+          return state.translate('enter_valid_price');
+        }
+        return null;
+      },
     );
   }
 
-  Widget _buildCurrencySelection() {
+  /// A compact $ / ៛ segmented switch, sized to sit beside the price field
+  /// instead of occupying its own full-width section — currency is a quick
+  /// binary pick, not a decision that needs visual emphasis.
+  Widget _buildCompactCurrencyToggle() {
     final state = Provider.of<AppState>(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,55 +489,95 @@ class _ImprovedAddNewProductScreenState extends State<ImprovedAddNewProductScree
           state.translate('currency'),
           style: GoogleFonts.inter(
             fontSize: 14,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w500,
             color: AppColors.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _buildCurrencyOption('USD', '\$ (USD)'),
-            const SizedBox(width: 12),
-            _buildCurrencyOption('KHR', '៛ (KHR)'),
-          ],
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+            border: Border.all(color: AppColors.outlineVariant),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildCurrencySegment('USD', '\$'),
+              _buildCurrencySegment('KHR', '៛'),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCurrencyOption(String value, String label) {
+  Widget _buildCurrencySegment(String value, String symbol) {
     final isSelected = _selectedCurrency == value;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedCurrency = value;
-          });
-        },
-        borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryContainer : AppColors.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.outlineVariant,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.bold,
-                color: isSelected ? AppColors.onPrimaryContainer : AppColors.onSurfaceVariant,
-                fontSize: 14,
-              ),
-            ),
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCurrency = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault - 3),
+        ),
+        child: Text(
+          symbol,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildUnitDropdown(List<String> units) {
+    final state = Provider.of<AppState>(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          state.translate('unit_type'),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
+            border: Border.all(color: AppColors.outlineVariant),
+          ),
+          child: DropdownButton<String>(
+            value: _selectedUnit,
+            isExpanded: true,
+            underline: const SizedBox(),
+            items: units.map((u) {
+              final translateKey = 'unit_$u';
+              return DropdownMenuItem(
+                value: u,
+                child: Text(state.translate(translateKey)),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() {
+                  _selectedUnit = val;
+                });
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 

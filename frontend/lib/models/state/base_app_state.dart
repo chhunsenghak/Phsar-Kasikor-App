@@ -180,35 +180,45 @@ class BidOffer {
   double get quantity => items.first.agreedQuantity;
 }
 
-class FarmerVerification {
+class FarmerCertificate {
   final String id;
-  final String name;
-  final String farmName;
-  final String location;
-  final String cropTypes;
-  final String docUrl;
-  final String certType; // 'organic', 'gap', 'gi', 'general'
+  final String farmerName;
+  final String certificateType; // 'organic', 'gap', 'gi', 'general'
+  final String? issuingBody;
+  final String documentUrl;
+  final DateTime createdAt;
   String status; // 'pending', 'approved', 'rejected'
 
-  FarmerVerification({
+  FarmerCertificate({
     required this.id,
-    required this.name,
-    required this.farmName,
-    required this.location,
-    required this.cropTypes,
-    required this.docUrl,
-    required this.certType,
+    required this.farmerName,
+    required this.certificateType,
+    this.issuingBody,
+    required this.documentUrl,
+    required this.createdAt,
     this.status = 'pending',
   });
 
-  String get resolvedDocUrl {
-    if (docUrl.isEmpty) {
+  factory FarmerCertificate.fromJson(Map<String, dynamic> json) {
+    return FarmerCertificate(
+      id: json['id']?.toString() ?? '',
+      farmerName: json['farmer_name']?.toString() ?? '',
+      certificateType: json['certificate_type']?.toString() ?? '',
+      issuingBody: json['issuing_body']?.toString(),
+      documentUrl: json['document_url']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
+      status: (json['status']?.toString() ?? 'pending').toLowerCase(),
+    );
+  }
+
+  String get resolvedDocumentUrl {
+    if (documentUrl.isEmpty) {
       return '';
     }
-    if (docUrl.startsWith('/')) {
-      return '${BaseApi.baseUrl}$docUrl';
+    if (documentUrl.startsWith('/')) {
+      return '${BaseApi.baseUrl}$documentUrl';
     }
-    return docUrl;
+    return documentUrl;
   }
 }
 
