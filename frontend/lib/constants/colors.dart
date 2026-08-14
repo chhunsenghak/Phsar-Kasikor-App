@@ -16,26 +16,31 @@ class AppColors {
   static const Color tertiaryContainer = Color(0xFF4D6553);
   static const Color onTertiaryContainer = Color(0xFFC6E1CA);
   
-  static const Color background = Color(0xFFF8F9FA);
+  static const Color background = Color(0xFFFBFAF6);
   static const Color onBackground = Color(0xFF191C1D);
-  
+
   static const Color surface = Color(0xFFFFFFFF);
   static const Color onSurface = Color(0xFF191C1D);
   static const Color onSurfaceVariant = Color(0xFF404943);
-  
+
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color surfaceContainerLow = Color(0xFFF3F4F5);
-  static const Color surfaceContainer = Color(0xFFEDEEEF);
-  static const Color surfaceContainerHigh = Color(0xFFE7E8E9);
-  static const Color surfaceContainerHighest = Color(0xFFE1E3E4);
-  
-  static const Color outline = Color(0xFF707973);
-  static const Color outlineVariant = Color(0xFFBFC9C1);
+  static const Color surfaceContainerLow = Color(0xFFF3F1EA);
+  static const Color surfaceContainer = Color(0xFFECE9E0);
+  static const Color surfaceContainerHigh = Color(0xFFE5E1D5);
+  static const Color surfaceContainerHighest = Color(0xFFDFDACB);
+
+  static const Color outline = Color(0xFF6B7268);
+  static const Color outlineVariant = Color(0xFFDEDACE);
   
   static const Color error = Color(0xFFBA1A1A);
   static const Color onError = Colors.white;
   static const Color errorContainer = Color(0xFFFFDAD6);
   static const Color onErrorContainer = Color(0xFF93000A);
+
+  /// Warm gold "needs attention" accent — replaces the ad-hoc Material
+  /// `Colors.amber` used for pending/unverified states across the app.
+  static const Color warning = Color(0xFFB8863B);
+  static const Color onWarningContainer = Color(0xFF6B4A1E);
 }
 
 class AppDesign {

@@ -10,6 +10,7 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
+import '../../widgets/profile/profile_hero_header.dart';
 import '../../services/api/auth_api.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/app_snackbar.dart';
@@ -60,28 +61,37 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
     final state = Provider.of<AppState>(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Full-bleed, unlike the rest of the content below — the hero
+          // motif from login/register only reads as a hero when it spans
+          // edge to edge instead of sitting inset inside the page padding.
           _buildProfileHeader(state),
-          if (!_justVerifiedEmail &&
-              state.userProfile?['email'] != null &&
-              state.userProfile?['is_verified'] != true) ...[
-            const SizedBox(height: 16),
-            _buildEmailVerificationCard(state),
-          ],
-          const SizedBox(height: 20),
-          _buildPersonalInfoCard(state),
-          const SizedBox(height: 20),
-          if (state.currentRole != 'admin') ...[
-            _buildAddressCard(state),
-            const SizedBox(height: 24),
-          ],
-          _buildSettingsSection(context, state),
-          const SizedBox(height: 32),
-          _buildLogoutButton(context, state),
-          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!_justVerifiedEmail &&
+                    state.userProfile?['email'] != null &&
+                    state.userProfile?['is_verified'] != true) ...[
+                  _buildEmailVerificationCard(state),
+                  const SizedBox(height: 16),
+                ],
+                _buildPersonalInfoCard(state),
+                const SizedBox(height: 20),
+                if (state.currentRole != 'admin') ...[
+                  _buildAddressCard(state),
+                  const SizedBox(height: 24),
+                ],
+                _buildSettingsSection(context, state),
+                const SizedBox(height: 32),
+                _buildLogoutButton(context, state),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -178,10 +188,19 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   Widget _buildEmailVerificationCard(AppState state) {
     return CustomCard(
       padding: const EdgeInsets.all(16),
-      backgroundColor: Colors.amber.withValues(alpha: 0.1),
+      backgroundColor: AppColors.warning.withValues(alpha: 0.14),
+      elevated: false,
       child: Row(
         children: [
-          Icon(Icons.mark_email_unread_outlined, color: Colors.amber.shade900),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(Icons.mark_email_unread_outlined, size: 16, color: AppColors.onWarningContainer),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -296,124 +315,12 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
   }
 
   Widget _buildProfileHeader(AppState state) {
-    final avatarImage = _getAvatarImage(state);
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppDesign.borderRadiusMd),
-        boxShadow: AppDesign.level2Shadow,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppDesign.borderRadiusMd),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -20,
-              bottom: -30,
-              child: Icon(
-                Icons.person_rounded,
-                size: 140,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-            ),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () => _pickProfileImage(context, state),
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 38,
-                        backgroundColor: Colors.white.withValues(alpha: 0.15),
-                        backgroundImage: avatarImage,
-                        child: avatarImage == null
-                            ? const Icon(
-                                Icons.person_rounded,
-                                size: 44,
-                                color: Colors.white,
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt_rounded,
-                            size: 14,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        state.userName,
-                        style: GoogleFonts.inter(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          state.translate('role_${state.currentRole}').toUpperCase(),
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        state.translate('member_since'),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: Colors.white.withValues(alpha: 0.85),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return ProfileHeroHeader(
+      avatarImage: _getAvatarImage(state),
+      name: state.userName,
+      roleLabel: state.translate('role_${state.currentRole}').toUpperCase(),
+      memberSinceText: state.translate('member_since'),
+      onEditAvatar: () => _pickProfileImage(context, state),
     );
   }
 
@@ -447,12 +354,10 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          _buildAddressRow(state.translate('username_label'), username),
-          const Divider(height: 12),
-          _buildAddressRow(state.translate('phone_label'), phone),
-          const Divider(height: 12),
-          _buildAddressRow(state.translate('email_label'), email),
+          const SizedBox(height: 4),
+          _buildAddressRow(Icons.person_outline_rounded, state.translate('username_label'), username, showTopDivider: false),
+          _buildAddressRow(Icons.call_outlined, state.translate('phone_label'), phone),
+          _buildAddressRow(Icons.mail_outline_rounded, state.translate('email_label'), email),
         ],
       ),
     );
@@ -594,27 +499,28 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                 if (state.hasPendingAddressRequest(state.userName))
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
+                      horizontal: 9,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
+                      color: AppColors.warning.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
                           Icons.hourglass_empty_rounded,
-                          size: 14,
-                          color: Colors.amber,
+                          size: 13,
+                          color: AppColors.onWarningContainer,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           state.translate('address_change_pending'),
                           style: GoogleFonts.inter(
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.bold,
-                            color: Colors.amber[900],
+                            color: AppColors.onWarningContainer,
                           ),
                         ),
                       ],
@@ -671,21 +577,23 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAddressRow(
+                  Icons.location_city_rounded,
                   state.translate('province_city'),
                   state.translateLocation(profile?['province']),
+                  showTopDivider: false,
                 ),
-                const Divider(height: 12),
                 _buildAddressRow(
+                  Icons.map_outlined,
                   state.translate('district'),
                   state.translateLocation(profile?['district']),
                 ),
-                const Divider(height: 12),
                 _buildAddressRow(
+                  Icons.place_outlined,
                   state.translate('commune'),
                   state.translateLocation(profile?['commune']),
                 ),
-                const Divider(height: 12),
                 _buildAddressRow(
+                  Icons.home_outlined,
                   state.translate('village'),
                   state.translateLocation(profile?['village']),
                 ),
@@ -694,8 +602,8 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
                         .toString()
                         .trim()
                         .isNotEmpty) ...[
-                  const Divider(height: 12),
                   _buildAddressRow(
+                    Icons.signpost_outlined,
                     state.translate('street_no'),
                     profile['street_address'],
                   ),
@@ -707,33 +615,55 @@ class _UserProfileSettingsScreenState extends State<UserProfileSettingsScreen> {
     );
   }
 
-  Widget _buildAddressRow(String label, dynamic value) {
+  Widget _buildAddressRow(IconData icon, String label, dynamic value, {bool showTopDivider = true}) {
     final state = Provider.of<AppState>(context, listen: false);
-    return Row(
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: AppColors.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        border: showTopDivider
+            ? const Border(top: BorderSide(color: AppColors.surfaceContainer, width: 1))
+            : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 15, color: AppColors.outline),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: AppColors.outline,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value?.toString() ?? state.translate('not_specified'),
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value?.toString() ?? state.translate('not_specified'),
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: AppColors.onSurface,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

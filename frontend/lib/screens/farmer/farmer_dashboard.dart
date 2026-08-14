@@ -10,6 +10,7 @@ import '../../utils/api_error.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/dashboard/dashboard_hero_header.dart';
 import '../../utils/currency_format.dart';
 import '../common/chat_inbox_screen.dart';
 import 'sales_analytics.dart';
@@ -96,71 +97,74 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(context),
-            const SizedBox(height: 20),
-            const _CoopInvitationsBanner(),
-            _buildPerformanceStats(
-              context,
-              activeBids: activeBids,
-              totalContracts: myContracts.length,
-              totalCustomers: customerIds.length,
-              pendingActionsCount: pendingActionsCount,
+            // Full-bleed, unlike the padded content below — the hero motif
+            // only reads as a hero when it spans edge to edge.
+            _buildHeroHeader(context),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _CoopInvitationsBanner(),
+                  _buildPerformanceStats(
+                    context,
+                    activeBids: activeBids,
+                    totalContracts: myContracts.length,
+                    totalCustomers: customerIds.length,
+                    pendingActionsCount: pendingActionsCount,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildQuickActions(context),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            _buildQuickActions(context),
-            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeroHeader(BuildContext context) {
     final state = Provider.of<AppState>(context, listen: false);
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.primaryContainer.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.dashboard_rounded,
-            color: AppColors.primary,
-            size: 22,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                state.translate('farmer_dashboard'),
-                style: GoogleFonts.inter(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.onSurface,
+    return DashboardHeroHeader(
+      title: state.translate('farmer_dashboard'),
+      subtitle: state.translate('manage_crops_subtitle'),
+      metricIcon: Icons.monetization_on_rounded,
+      metricLabel: state.translate('yearly_sales_revenue'),
+      onTapMetric: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const SalesAnalyticsScreen()),
+      ),
+      metric: _isLoadingStats
+          ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          // Both currencies, always — even at $0/៛0 — since Cambodia trades
+          // in both and a farmer with only KHR orders so far shouldn't look
+          // like USD isn't tracked at all. Never blended into one number:
+          // there's no exchange rate anywhere in this app. Always on
+          // separate lines, not side by side, so neither currency reads as
+          // an afterthought.
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatCurrency(_revenueByCurrency['USD'] ?? 0.0, 'USD'),
+                  style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                state.translate('manage_crops_subtitle'),
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: AppColors.onSurfaceVariant,
+                Text(
+                  formatCurrency(_revenueByCurrency['KHR'] ?? 0.0, 'KHR'),
+                  style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
+              ],
+            ),
     );
   }
 
@@ -207,91 +211,6 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SalesAnalyticsScreen(),
-                ),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.secondary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-                boxShadow: AppDesign.level2Shadow,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.monetization_on_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _isLoadingStats
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            // Both currencies, always — even at $0/៛0 — since
-                            // Cambodia trades in both and a farmer with only
-                            // KHR orders so far shouldn't look like USD isn't
-                            // tracked at all. Never blended into one number:
-                            // there's no exchange rate anywhere in this app.
-                            // Always on separate lines, not side by side, so
-                            // neither currency reads as an afterthought.
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    formatCurrency(_revenueByCurrency['USD'] ?? 0.0, 'USD'),
-                                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                  Text(
-                                    formatCurrency(_revenueByCurrency['KHR'] ?? 0.0, 'KHR'),
-                                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                ],
-                              ),
-                        const SizedBox(height: 2),
-                        Text(
-                          state.translate('yearly_sales_revenue'),
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.85)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: Colors.white),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -332,7 +251,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
               child: _buildStatCard(
                 context,
                 icon: Icons.local_shipping_outlined,
-                iconColor: AppColors.error,
+                iconColor: AppColors.warning,
                 value: _isLoadingStats ? '-' : '$pendingActionsCount',
                 label: state.translate('pending_actions'),
               ),

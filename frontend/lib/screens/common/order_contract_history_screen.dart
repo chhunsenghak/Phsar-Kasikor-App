@@ -1309,8 +1309,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                         lastDate: DateTime(now.year + 3),
                         initialDateRange: tempRange,
                       );
-                      if (picked != null)
+                      if (picked != null) {
                         setModalState(() => tempRange = picked);
+                      }
                     },
                     child: Container(
                       width: double.infinity,
@@ -2099,8 +2100,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       onPressed: isProcessing
                           ? null
                           : () async {
-                              if (!await _confirmWithdrawOffer(context, state))
+                              if (!await _confirmWithdrawOffer(context, state)) {
                                 return;
+                              }
                               if (!context.mounted) return;
                               setSheetState(() => isProcessing = true);
                               final error = await state.rejectBid(contract.id);
@@ -2192,8 +2194,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                       onPressed: isProcessing
                           ? null
                           : () async {
-                              if (!await _confirmWithdrawOffer(context, state))
+                              if (!await _confirmWithdrawOffer(context, state)) {
                                 return;
+                              }
                               if (!context.mounted) return;
                               setSheetState(() => isProcessing = true);
                               final error = await state.rejectBid(contract.id);
@@ -2495,8 +2498,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                     child: Center(widthFactor: 1, child: Text('%')),
                   ),
                   onChanged: (_) {
-                    if (validationError != null)
+                    if (validationError != null) {
                       setDialogState(() => validationError = null);
+                    }
                   },
                 ),
                 if (validationError != null) ...[
@@ -2538,8 +2542,9 @@ class _OrderContractHistoryScreenState extends State<OrderContractHistoryScreen>
                         if (!dialogContext.mounted) return;
                         if (error != null) {
                           setDialogState(() => isSubmitting = false);
-                          if (sheetContext.mounted)
+                          if (sheetContext.mounted) {
                             setSheetState(() => setProcessing(false));
+                          }
                           AppSnackBar.error(
                             dialogContext,
                             friendlyContractErrorMessage(state, error),

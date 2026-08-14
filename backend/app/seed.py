@@ -552,14 +552,18 @@ def seed_demo_content(db):
     logger.info("Created demo cooperative + members.")
 
     # --- Market prices ---
+    # All in USD/kg — MarketPrice has no currency column, and
+    # market_price_tracker.dart (frontend) always renders a literal "$"
+    # prefix regardless of what's stored, so a KHR-scale number here would
+    # display as a nonsensical dollar amount (e.g. "$5000.00/kg" for oranges).
     market_prices_to_seed = [
         ("Rice (Jasmine)", 1.20, 1.35, 1.05, "Phnom Penh Central Market", date(2026, 8, 10)),
-        ("Mango", 500, 600, 400, "Battambang Provincial Market", date(2026, 8, 11)),
-        ("Orange", 5000, 5500, 4500, "Phnom Penh Central Market", date(2026, 8, 11)),
+        ("Mango", 0.12, 0.15, 0.10, "Battambang Provincial Market", date(2026, 8, 11)),
+        ("Orange", 1.25, 1.35, 1.10, "Phnom Penh Central Market", date(2026, 8, 11)),
         ("Corn (Yellow)", 0.90, 1.00, 0.75, "Kampong Cham Market", date(2026, 8, 12)),
         ("Durian", 8.00, 9.50, 7.00, "Kampong Cham Market", date(2026, 8, 12)),
-        ("Watermelon", 1200, 1400, 1000, "Battambang Provincial Market", date(2026, 8, 13)),
-        ("Cabbage", 2500, 2800, 2200, "Phnom Penh Central Market", date(2026, 8, 13)),
+        ("Watermelon", 0.30, 0.35, 0.25, "Battambang Provincial Market", date(2026, 8, 13)),
+        ("Cabbage", 0.60, 0.68, 0.55, "Phnom Penh Central Market", date(2026, 8, 13)),
     ]
     for commodity, avg, high, low, location, recorded in market_prices_to_seed:
         if not db.query(MarketPrice).filter(

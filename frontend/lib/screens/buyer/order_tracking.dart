@@ -10,6 +10,7 @@ import '../../models/app_state.dart';
 import '../../widgets/custom_card.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/order/order_tracking_hero.dart';
 import '../../services/api/delivery_api.dart';
 import '../../services/api/order_api.dart';
 import '../../utils/api_error.dart';
@@ -75,6 +76,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       'desc': 'step_delivered_desc',
       'time': 'pending_time_label',
     },
+  ];
+
+  static const List<IconData> _stepIcons = [
+    Icons.receipt_long_rounded,
+    Icons.inventory_2_rounded,
+    Icons.local_shipping_rounded,
+    Icons.flag_rounded,
   ];
 
   int get _currentStep {
@@ -192,6 +200,48 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     }
   }
 
+  IconData get _heroStatusIcon =>
+      _orderStatus == 'CANCELLED' ? Icons.cancel_rounded : _stepIcons[_currentStep.clamp(0, _stepIcons.length - 1)];
+
+  Widget _buildInfoRow(IconData icon, String label, String value, {bool showTopDivider = true}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        border: showTopDivider ? const Border(top: BorderSide(color: AppColors.surfaceContainer, width: 1)) : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 15, color: AppColors.outline),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: AppColors.outline),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.onSurface),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
@@ -199,113 +249,59 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onSurface),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          state.translate('order_tracking'),
-          style: GoogleFonts.inter(
-            color: AppColors.onSurface,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CustomCard(
-              padding: const EdgeInsets.all(16),
-              backgroundColor: AppColors.surface,
-              child: Row(
+            // Full-bleed, unlike the padded content below — the hero motif
+            // only reads as a hero when it spans edge to edge.
+            OrderTrackingHero(
+              title: state.translate('order_tracking'),
+              orderRef: '${state.translate('order_id')}: PK-$ref',
+              totalText: formatCurrencyAmount(widget.total, widget.currency),
+              statusLabel: _orderStatus == 'CANCELLED'
+                  ? state.translate('order_cancelled')
+                  : state.translate(_steps[_currentStep.clamp(0, _steps.length - 1)]['title']!),
+              statusIcon: _heroStatusIcon,
+              onBack: () => Navigator.pop(context),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.secondaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.local_shipping_outlined, color: AppColors.onSecondaryContainer),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  CustomCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${state.translate('order_id')}: PK-$ref',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
+                        _buildInfoRow(
+                          Icons.shopping_bag_outlined,
+                          state.translate('order_id'),
                           state.translate('units_of', arguments: {
                             'count': widget.quantity.toInt().toString(),
                             'name': widget.productName,
                           }),
-                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+                          showTopDivider: false,
+                        ),
+                        _buildInfoRow(
+                          Icons.qr_code_rounded,
+                          state.translate('payment_method'),
+                          _paymentMethod == 'COD' ? state.translate('cod_cash') : state.translate('khqr_pay'),
+                        ),
+                        _buildInfoRow(
+                          Icons.local_shipping_outlined,
+                          state.translate('delivery_method'),
+                          _deliveryMethod == 'PICKUP' ? state.translate('self_pickup') : state.translate('express_delivery'),
                         ),
                       ],
                     ),
                   ),
-                  Text(
-                    formatCurrencyAmount(widget.total, widget.currency),
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            CustomCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              backgroundColor: AppColors.surface,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        state.translate('payment_method'),
-                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
-                      ),
-                      Text(
-                        _paymentMethod == 'COD' ? state.translate('cod_cash') : state.translate('khqr_pay'),
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        state.translate('delivery_method'),
-                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
-                      ),
-                      Text(
-                        _deliveryMethod == 'PICKUP' ? state.translate('self_pickup') : state.translate('express_delivery'),
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
 
-            if (_deliveryMethod == 'DELIVERY' && _destinationLat != null && _destinationLng != null) ...[
-              const SizedBox(height: 12),
-              _buildDeliveryMapCard(state),
-            ],
+                  if (_deliveryMethod == 'DELIVERY' && _destinationLat != null && _destinationLng != null) ...[
+                    const SizedBox(height: 12),
+                    _buildDeliveryMapCard(state),
+                  ],
 
             if ((_deliveryContactPhone?.isNotEmpty ?? false) || (_deliveryNotes?.isNotEmpty ?? false)) ...[
               const SizedBox(height: 12),
@@ -408,11 +404,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 final isCompleted = _orderStatus != 'CANCELLED' && idx < _currentStep;
                 final isActive = _orderStatus != 'CANCELLED' && idx == _currentStep;
 
-                final circleColor = isCompleted
-                    ? AppColors.primary
-                    : isActive
-                        ? AppColors.secondary
-                        : AppColors.outlineVariant;
                 final textColor = isCompleted || isActive ? AppColors.onSurface : AppColors.onSurfaceVariant;
                 final subTextColor = isCompleted || isActive ? AppColors.onSurfaceVariant : AppColors.outline;
 
@@ -423,16 +414,25 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                       Column(
                         children: [
                           Container(
-                            width: 24,
-                            height: 24,
+                            width: 28,
+                            height: 28,
                             decoration: BoxDecoration(
-                              color: circleColor,
+                              color: isCompleted
+                                  ? AppColors.primary
+                                  : isActive
+                                      ? AppColors.surface
+                                      : AppColors.surfaceContainer,
                               shape: BoxShape.circle,
+                              border: isActive ? Border.all(color: AppColors.primary, width: 2) : null,
                             ),
                             child: Icon(
-                              isCompleted ? Icons.check_rounded : Icons.lens_rounded,
-                              size: isCompleted ? 14 : 10,
-                              color: isCompleted || isActive ? Colors.white : AppColors.outline,
+                              isCompleted ? Icons.check_rounded : _stepIcons[idx],
+                              size: isCompleted ? 15 : 13,
+                              color: isCompleted
+                                  ? Colors.white
+                                  : isActive
+                                      ? AppColors.primary
+                                      : AppColors.outline,
                             ),
                           ),
                           if (idx < _steps.length - 1)
@@ -533,6 +533,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               },
             ),
             const SizedBox(height: 40),
+                ],
+              ),
+            ),
           ],
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'constants/colors.dart';
 import 'models/app_state.dart';
 import 'screens/common/notification_center.dart';
 import 'screens/common/splash_screen.dart';
@@ -45,10 +46,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F5238),
-          primary: const Color(0xFF0F5238),
-          secondary: const Color(0xFF2B694D),
-          surface: const Color(0xFFF8F9FA),
+          seedColor: AppColors.primary,
+          primary: AppColors.primary,
+          secondary: AppColors.secondary,
+          surface: AppColors.background,
         ),
         useMaterial3: true,
       ),

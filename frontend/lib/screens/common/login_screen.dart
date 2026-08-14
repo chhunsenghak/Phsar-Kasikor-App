@@ -4,9 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../constants/colors.dart';
 import '../../models/app_state.dart';
-import '../../widgets/custom_button.dart';
-import '../../widgets/custom_card.dart';
-import '../../widgets/custom_input.dart';
+import '../../widgets/auth/auth_hero.dart';
+import '../../widgets/auth/auth_primary_button.dart';
+import '../../widgets/auth/auth_underline_field.dart';
 import 'registration_screen.dart';
 import 'app_shell.dart';
 import 'forgot_password_screen.dart';
@@ -114,335 +114,251 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-          // Centered, width-capped column — on a phone this is a no-op (the
-          // screen is already narrower than the cap), but it keeps the form
-          // from stretching edge-to-edge into unnaturally wide input fields
-          // on a tablet or the web build.
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _buildLogo(),
-                  const SizedBox(height: 36),
-                  _buildLoginCard(context),
-                  const SizedBox(height: 24),
-                  _buildDivider(context),
-                  const SizedBox(height: 20),
-                  _buildSocialButton(context),
-                  const SizedBox(height: 28),
-                  _buildSignUpLink(context),
-                  const SizedBox(height: 32),
-                  _buildFooterBadges(),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogo() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.eco_rounded,
-            size: 18,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'Phsar Kasikor',
-          style: GoogleFonts.inter(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoginCard(BuildContext context) {
     final state = Provider.of<AppState>(context);
-    return CustomCard(
-      elevationLevel: 2,
-      padding: const EdgeInsets.all(24.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Greeting Header
-            Center(
-              child: Column(
-                children: [
-                  Text(
-                    state.translate('welcome_back'),
-                    style: GoogleFonts.inter(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    state.translate('sign_up_desc'),
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
 
-            // Form Fields
-            CustomInput(
-              label: state.translate('phone_or_email'),
-              hintText: state.translate('enter_phone_email'),
-              controller: _identifierController,
-              prefixIcon: Icons.person_outline_rounded,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return state.translate('enter_phone_email');
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            CustomInput(
-              label: state.translate('password'),
-              hintText: '••••••••',
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              isPassword: true,
-              prefixIcon: Icons.lock_outline_rounded,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                  color: AppColors.outline,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return state.translate('enter_password');
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Remember Me / Forgot Password Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Scaffold(
+      backgroundColor: authPaper,
+      body: Column(
+        children: [
+          AuthHero(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Flexible(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Checkbox(
-                          value: _rememberMe,
-                          activeColor: AppColors.primary,
-                          onChanged: (val) {
-                            setState(() {
-                              _rememberMe = val ?? true;
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          state.translate('keep_signed_in'),
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: AppColors.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.eco_rounded, size: 15, color: Colors.white),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Phsar Kasikor',
+                  style: GoogleFonts.fraunces(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
                   ),
                 ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
-                    );
-                  },
-                  child: Text(
-                    state.translate('forgot_password'),
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                )
               ],
             ),
-            const SizedBox(height: 24),
-
-            // Sign In Button
-            CustomButton(
-              text: state.translate('sign_in_button'),
-              icon: Icons.arrow_forward_rounded,
-              isLoading: _isLoading,
-              onPressed: _handleSignIn,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDivider(BuildContext context) {
-    final state = Provider.of<AppState>(context);
-    return Row(
-      children: [
-        const Expanded(child: Divider(color: AppColors.outlineVariant)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            state.translate('or_continue_with').toUpperCase(),
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.outline,
-              letterSpacing: 1.0,
-            ),
           ),
-        ),
-        const Expanded(child: Divider(color: AppColors.outlineVariant)),
-      ],
-    );
-  }
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(26, 22, 26, 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            state.translate('welcome_back'),
+                            style: GoogleFonts.fraunces(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.onSurface,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            state.translate('sign_up_desc'),
+                            style: GoogleFonts.inter(fontSize: 13.5, color: authMutedText),
+                          ),
+                          const SizedBox(height: 26),
 
-  Widget _buildSocialButton(BuildContext context) {
-    final state = Provider.of<AppState>(context);
-    return OutlinedButton(
-      onPressed: _handleGoogleSignIn,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.onSurface,
-        side: const BorderSide(color: AppColors.outlineVariant),
-        minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SvgPicture.asset('assets/icons/google_logo.svg', width: 20, height: 20),
-          const SizedBox(width: 8),
-          Text(
-            state.translate('google_sign_in'),
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+                          AuthUnderlineField(
+                            label: state.translate('phone_or_email'),
+                            hintText: state.translate('enter_phone_email'),
+                            controller: _identifierController,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return state.translate('enter_phone_email');
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 18),
+
+                          AuthUnderlineField(
+                            label: state.translate('password'),
+                            hintText: '••••••••',
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                color: authFaintText,
+                                size: 19,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return state.translate('enter_password');
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 8),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: Checkbox(
+                                        value: _rememberMe,
+                                        activeColor: AppColors.primary,
+                                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        onChanged: (val) {
+                                          setState(() {
+                                            _rememberMe = val ?? true;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        state.translate('keep_signed_in'),
+                                        style: GoogleFonts.inter(fontSize: 12.5, color: authMutedText),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                                  );
+                                },
+                                child: Text(
+                                  state.translate('forgot_password'),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12.5,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+
+                          AuthPrimaryButton(
+                            text: state.translate('sign_in_button'),
+                            isLoading: _isLoading,
+                            onPressed: _handleSignIn,
+                          ),
+                          const SizedBox(height: 20),
+
+                          Row(
+                            children: [
+                              const Expanded(child: Divider(color: authHairline)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                child: Text(
+                                  state.translate('or_continue_with').toUpperCase(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: authFaintText,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ),
+                              const Expanded(child: Divider(color: authHairline)),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton(
+                              onPressed: _handleGoogleSignIn,
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: AppColors.surface,
+                                foregroundColor: AppColors.onSurface,
+                                side: const BorderSide(color: authHairline, width: 1.3),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SvgPicture.asset('assets/icons/google_logo.svg', width: 18, height: 18),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    state.translate('google_sign_in'),
+                                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+
+                          Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  state.translate('no_account'),
+                                  style: GoogleFonts.inter(fontSize: 13, color: authMutedText),
+                                ),
+                                const SizedBox(width: 4),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const RegistrationScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    state.translate('register_now'),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSignUpLink(BuildContext context) {
-    final state = Provider.of<AppState>(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          state.translate('no_account'),
-          style: GoogleFonts.inter(
-            fontSize: 15,
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(width: 4),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const RegistrationScreen(),
-              ),
-            );
-          },
-          child: Text(
-            state.translate('register_now'),
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFooterBadges() {
-    final state = Provider.of<AppState>(context, listen: false);
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 12,
-      runSpacing: 6,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.outline),
-            const SizedBox(width: 4),
-            Text(
-              state.translate('secure_connection'),
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
-            ),
-          ],
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.outline),
-            const SizedBox(width: 4),
-            Text(
-              state.translate('data_encrypted'),
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.outline),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

@@ -40,22 +40,23 @@ class CustomInput extends StatelessWidget {
       children: [
         if (label.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
+            padding: const EdgeInsets.only(left: 2.0, bottom: 7.0),
             child: Text.rich(
               TextSpan(
-                text: label,
+                text: label.toUpperCase(),
                 style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  color: AppColors.outline,
                 ),
                 children: isRequired
                     ? [
                         TextSpan(
                           text: ' *',
                           style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.error,
                           ),
                         ),

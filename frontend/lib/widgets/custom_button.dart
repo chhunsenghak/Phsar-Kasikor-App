@@ -114,7 +114,7 @@ class CustomButton extends StatelessWidget {
           backgroundColor: bg,
           foregroundColor: fg,
           side: border,
-          shape: const StadiumBorder(),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDesign.borderRadiusDefault)),
           elevation: isOutline || isSecondary || disabled ? 0 : 2,
           shadowColor: AppColors.primary.withValues(alpha: 0.2),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

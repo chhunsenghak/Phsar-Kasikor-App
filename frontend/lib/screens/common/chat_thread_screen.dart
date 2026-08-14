@@ -348,7 +348,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
                       : Border.all(color: AppColors.outlineVariant, width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
+                      color: const Color.fromRGBO(45, 106, 79, 0.06),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -381,7 +381,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
                           Icon(
                             isRead ? Icons.done_all_rounded : Icons.done_rounded,
                             size: 14,
-                            color: isRead ? Colors.lightBlueAccent : Colors.white.withValues(alpha: 0.75),
+                            color: isRead ? AppColors.onPrimaryContainer : Colors.white.withValues(alpha: 0.75),
                           ),
                         ],
                       ],
@@ -483,7 +483,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBinding
                 color: AppColors.surface,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: const Color.fromRGBO(45, 106, 79, 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, -2),
                   ),
